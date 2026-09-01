@@ -12,6 +12,8 @@ ScenarioInputs scenario_inputs_for(ScenarioId scenario, SimulationTimestamp time
   using namespace model_parameters;
 
   double requested_load = kIdleRequestedScenarioLoad;
+  double accelerator = 0.0;
+  bool stationary_intent = true;
   bool start_requested = false;
 
   switch (scenario) {
@@ -35,14 +37,41 @@ ScenarioInputs scenario_inputs_for(ScenarioId scenario, SimulationTimestamp time
                            elevated_fraction;
       break;
     }
+    case ScenarioId::kCity:
+      if (timestamp.microseconds < kCityFirstDepartureTimestampMicroseconds) {
+        break;
+      }
+      stationary_intent = false;
+      if (timestamp.microseconds < kCityFirstCruiseTimestampMicroseconds) {
+        accelerator = kCityFirstAccelerationAccelerator;
+        requested_load = kCityFirstAccelerationLoad;
+      } else if (timestamp.microseconds < kCityFirstDecelerationTimestampMicroseconds) {
+        accelerator = kCityFirstCruiseAccelerator;
+        requested_load = kCityFirstCruiseLoad;
+      } else if (timestamp.microseconds < kCityFirstStopIntentTimestampMicroseconds) {
+        accelerator = 0.0;
+      } else if (timestamp.microseconds < kCitySecondDepartureTimestampMicroseconds) {
+        stationary_intent = true;
+      } else if (timestamp.microseconds < kCitySecondCruiseTimestampMicroseconds) {
+        accelerator = kCitySecondAccelerationAccelerator;
+        requested_load = kCitySecondAccelerationLoad;
+      } else if (timestamp.microseconds < kCityFinalDecelerationTimestampMicroseconds) {
+        accelerator = kCitySecondCruiseAccelerator;
+        requested_load = kCitySecondCruiseLoad;
+      } else if (timestamp.microseconds < kCityFinalStopIntentTimestampMicroseconds) {
+        accelerator = 0.0;
+      } else {
+        stationary_intent = true;
+      }
+      break;
     default:
-      throw std::invalid_argument("scenario is not implemented in Phase 1B");
+      throw std::invalid_argument("scenario is not implemented in Phase 1C");
   }
 
   return {
-      .accelerator_pedal_position = 0.0,
+      .accelerator_pedal_position = accelerator,
       .requested_scenario_load = requested_load,
-      .command_vehicle_stationary = true,
+      .command_vehicle_stationary = stationary_intent,
       .engine_start_requested = start_requested,
       .environment = environment,
   };

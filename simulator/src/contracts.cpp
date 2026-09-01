@@ -36,8 +36,9 @@ bool is_valid(const VehicleState& state, const VehicleProfile& profile) noexcept
          (state.engine_running || state.engine_speed_rpm == 0.0) &&
          is_normalized(state.engine_load) && is_normalized(state.throttle_position) &&
          std::isfinite(state.vehicle_speed_meters_per_second) &&
-         state.vehicle_speed_meters_per_second >= 0.0 && gear >= -1 &&
+         state.vehicle_speed_meters_per_second >= 0.0 && gear >= 0 &&
          gear <= static_cast<int>(profile.forward_gear_count) &&
+         (state.vehicle_speed_meters_per_second == 0.0 || (state.engine_running && gear > 0)) &&
          std::isfinite(state.ambient_pressure_kpa_absolute) &&
          state.ambient_pressure_kpa_absolute >= 0.0 &&
          std::isfinite(state.manifold_pressure_kpa_absolute) &&

@@ -79,7 +79,7 @@ struct VehicleState {
   double throttle_position{};  // normalized [0, 1]
 
   double vehicle_speed_meters_per_second{};
-  std::int8_t current_gear{};  // -1 reverse, 0 neutral, positive values are forward gears
+  std::int8_t current_gear{};  // 0 neutral; positive values are forward gears; no reverse model
 
   double ambient_pressure_kpa_absolute{};
   double manifold_pressure_kpa_absolute{};

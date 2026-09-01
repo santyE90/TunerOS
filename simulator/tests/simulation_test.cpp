@@ -218,8 +218,9 @@ bool test_time_step_consistency() {
 
 bool test_unsupported_scenarios() {
   constexpr std::array unsupported{
-      ScenarioId::kCity,     ScenarioId::kHighway,
-      ScenarioId::kSpirited, ScenarioId::kWideOpenThrottlePull,
+      ScenarioId::kHighway,
+      ScenarioId::kSpirited,
+      ScenarioId::kWideOpenThrottlePull,
       ScenarioId::kDynoPull,
   };
 

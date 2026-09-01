@@ -1,7 +1,8 @@
 # Simulation contracts
 
-This specification defines the stable engineering contracts and records the Phase 1A–1B
-deterministic simulation implementation. Only vehicle-side clock, initial/environment configuration,
+This specification defines the stable engineering contracts and records the Phase 1A–1C
+deterministic simulation implementation. Only vehicle-side clock,
+initial/environment configuration,
 scenario input, orchestration, and minimal state evolution exist; downstream ECU/CAN and application
 layers remain unimplemented.
 
@@ -80,7 +81,7 @@ Fuel units are deferred until a concrete Phase 1+ field needs them. Continuous p
 use finite `double` values; discrete modes use enums or explicit integer codes. Field names include
 units where practical. TunerOS adds no custom units library and permits no scattered magic
 conversion constants. Counts and time use unsigned integers because negative values are invalid;
-gear uses a signed integer so `-1` can represent reverse.
+gear uses a signed integer for the neutral/forward domain; reverse remains unimplemented.
 
 Internal engineering state stays canonical. Inputs, configuration loaders, CAN encoding/decoding,
 APIs, and UI presentation are explicit conversion boundaries. A UI may display mph, psi, horsepower,
@@ -117,7 +118,7 @@ production telemetry path.
 | `engine_load` | simplified normalized engine load | `[0,1]` | vehicle model | Required |
 | `throttle_position` | simplified effective throttle opening | `[0,1]` | vehicle model/controller result | Required |
 | `vehicle_speed_meters_per_second` | longitudinal speed magnitude | m/s, non-negative initially | vehicle model | Required |
-| `current_gear` | selected gear | `-1` reverse, `0` neutral, `1..gear_count` forward | transmission/vehicle model | Required |
+| `current_gear` | selected gear | `0` neutral, `1..gear_count` forward | transmission/vehicle model | Required |
 | `ambient_pressure_kpa_absolute` | run ambient pressure snapshot | kPa abs, non-negative | environment input | Required |
 | `manifold_pressure_kpa_absolute` | intake manifold pressure | kPa abs, non-negative | vehicle model | Reserved |
 | `requested_boost_kpa_gauge` | simplified boost target above ambient | kPa gauge, finite | future DME controller | Reserved |
@@ -159,7 +160,7 @@ accelerator, requested load, stationary command, engine-start request, and envir
 Scenario phases are therefore fully time-derived and need no resettable hidden state.
 
 Planned identifiers are `IDLE`, `COLD_START`, `WARMUP`, `CITY`, `HIGHWAY`, `SPIRITED`, `WOT_PULL`,
-and `DYNO_PULL`. IDLE, COLD_START, and WARMUP are implemented through Phase 1B.
+and `DYNO_PULL`. IDLE, COLD_START, WARMUP, and CITY are implemented through Phase 1C.
 
 A scenario provides stimuli. It does **not** set resulting rpm every tick, generate CAN frames,
 create diagnostic faults, implement controllers, or manipulate frontend state. The vehicle model
@@ -186,7 +187,7 @@ IDLE is a category B realistic simplification, not an implementation of BMW idle
 - engine-running battery voltage must stay in the category B range 13.0–15.0 V;
 - produce no faults and no CAN output because neither subsystem exists in Phase 1.
 
-CITY, HIGHWAY, SPIRITED, WOT_PULL, and DYNO_PULL remain reserved. Constructing a Phase 1B simulation
+HIGHWAY, SPIRITED, WOT_PULL, and DYNO_PULL remain reserved. Constructing a Phase 1C simulation
 for any of them throws `std::invalid_argument` rather than substituting implemented behavior.
 
 ## Phase 1A numerical model and parameters
@@ -234,10 +235,9 @@ temperatures, battery voltage, vehicle speed, and gear. It does not mirror scena
 environment pressure, model targets, derived pressure, lambda, ignition, or run state.
 
 Validation requires finite/non-negative RPM, speed, and voltage; finite temperatures; RPM within the
-profile limit; and gear within the profile range. A stopped engine must have exactly zero RPM. The
-three implemented scenarios are stationary, so their run configurations additionally require zero
-initial speed and neutral gear. IDLE/WARMUP require an initially running engine; COLD_START requires
-an initially stopped engine.
+profile limit; and gear within the neutral/forward profile range. A stopped engine must have exactly
+zero RPM. Implemented runs begin at zero speed and neutral gear. IDLE, WARMUP, and CITY require an
+initially running engine; COLD_START requires an initially stopped engine.
 
 Default factories take an explicit `EnvironmentState` and build matching initial conditions. A
 caller may then replace any focused initial field before constructing `VehicleSimulation`.
@@ -267,6 +267,89 @@ oil at ambient + 15 °C, intake air at ambient + 5 °C, and battery voltage at 1
 same zero-accelerator/normal-idle inputs as IDLE. Its purpose is configurable warmer initial state and
 long bounded thermal progression; it has no invented extra control behavior.
 
+## Phase 1C CITY input schedule
+
+CITY is a 105-second TunerOS synthetic drive schedule. Its scenario function remains stateless and
+selects inputs solely from the integer simulation timestamp. Interval starts are inclusive:
+
+| Simulation interval | Accelerator | Requested load | Stationary intent |
+| --- | ---: | ---: | --- |
+| `[0, 5)` s | 0.00 | 0.10 | true |
+| `[5, 20)` s | 0.45 | 0.50 | false |
+| `[20, 32)` s | 0.30 | 0.35 | false |
+| `[32, 45)` s | 0.00 | 0.10 | false |
+| `[45, 55)` s | 0.00 | 0.10 | true |
+| `[55, 75)` s | 0.55 | 0.60 | false |
+| `[75, 88)` s | 0.36 | 0.40 | false |
+| `[88, 100)` s | 0.00 | 0.10 | false |
+| `[100, 105]` s | 0.00 | 0.10 | true |
+
+The scenario never assigns final speed, gear, RPM, engine load, throttle, or pressure. A stationary
+input is an intent consumed by the vehicle response, not an instantaneous speed command. There is no
+hidden scenario phase state, event bus, script, route, or random driver variation.
+
+The default CITY initial conditions are engine-running at 750 rpm, zero speed, neutral gear,
+14.2 V, coolant at ambient + 35 degrees Celsius, oil at ambient + 30 degrees Celsius, and intake air
+at ambient + 5 degrees Celsius.
+
+## Phase 1C longitudinal and drivetrain response
+
+All parameters in this section are category B/C TunerOS assumptions, not BMW calibration or a full
+vehicle-physics model. For non-stationary input, one tick computes:
+
+```text
+drive_acceleration = accelerator * 2.0 m/s^2
+resistance = speed > 0 ? 0.45 m/s^2 + 0.025 / s * speed : 0
+acceleration = drive_acceleration - resistance
+next_speed = max(0, speed + acceleration * delta_time_seconds)
+```
+
+Stationary intent instead applies `-1.5 m/s^2` until speed reaches zero; a value at or below the
+0.05 m/s stop epsilon is clamped exactly to zero. This supports repeatable stops without introducing
+mass, torque, power, tire, clutch, brake, road-grade, or energy-balance models.
+
+CITY uses a synthetic scenario-controlled manual-driver gear schedule in the vehicle response:
+
+| Speed | Selected gear |
+| --- | ---: |
+| stationary intent and speed <= 0.05 m/s | 0 |
+| below 4.5 m/s | 1 |
+| 4.5 to below 8.0 m/s | 2 |
+| 8.0 to below 12.0 m/s | 3 |
+| 12.0 m/s or above | 4 |
+
+This schedule is not automatic-transmission behavior, an EGS, or a clutch model. Gears 5 and 6 are
+valid profile gears and have coupling factors for focused drivetrain tests, but the default CITY
+schedule does not reach them. Engine speed is recomputed from the selected gear and speed:
+
+```text
+engine_rpm = clamp(speed * rpm_per_meter_per_second[gear], 750 rpm, profile_redline)
+```
+
+The synthetic factors for gears 1 through 6 are respectively `310`, `200`, `145`, `110`, `90`, and
+`75 rpm per m/s`. Neutral or zero-speed engine-running behavior returns the 750 rpm idle floor.
+An upshift can therefore create a deterministic RPM drop without clutch-slip dynamics.
+
+CITY maps requested load to normalized engine load as
+`clamp(0.08 + requested_load, 0, 1)` and accelerator to throttle as
+`clamp(0.06 + 0.60 * accelerator, 0, 1)`. Its MAP ratio is:
+
+```text
+load_above_idle = clamp((requested_load - 0.10) / 0.90, 0, 1)
+map_ratio = 0.40 + (1.00 - 0.40) * load_above_idle
+manifold_absolute_pressure = ambient_absolute_pressure * map_ratio
+```
+
+Thus higher CITY load reduces manifold vacuum while MAP remains at or below ambient. Requested boost
+remains zero. No turbo or boost-control dynamics are implied. Existing thermal, intake-air, and
+charging-voltage first-order responses continue during motion.
+
+CITY does not require schedule boundaries to align with the fixed step. Inputs are evaluated at each
+exact post-advance integer timestamp, so a 15 ms step crosses the 5-second boundary at 5.010 seconds
+without rounding, floating-point time accumulation, or hidden phase state. Identical configurations
+produce identical sequences; 10 ms, 20 ms, and boundary-misaligned 15 ms runs are compared for
+physically consistent outcomes rather than bit equality across different step sizes.
+
 ## Reset and state evolution
 
 Each tick advances the integer clock first, evaluates stateless inputs for that resulting timestamp,
@@ -279,10 +362,11 @@ Reset sets clock timestamp/tick count to zero, clears pause state, and copies th
 stateless, no scenario phase state exists to reset. Repeating a run after reset produces the same
 state sequence.
 
-Phase 1B dynamically models engine-running transition, RPM, engine load, throttle, manifold pressure,
-coolant/oil/intake-air temperatures, and battery voltage where scenario inputs require it. Vehicle
-speed and gear remain fixed stationary/neutral; requested boost, lambda, ignition baseline, and
-timing correction remain deterministic placeholders.
+Through Phase 1C, the model dynamically owns engine-running transition, RPM, engine load, throttle,
+manifold pressure, speed, forward gear selection, coolant/oil/intake-air temperatures, and battery
+voltage where scenario inputs require them. Speed and gear remain stationary/neutral in IDLE,
+COLD_START, and WARMUP and evolve only in CITY. Requested boost, lambda, ignition baseline, and timing
+correction remain deterministic placeholders.
 
 ## Environment and configuration boundaries
 

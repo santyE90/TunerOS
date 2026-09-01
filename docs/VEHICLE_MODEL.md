@@ -86,7 +86,8 @@ profiles.
 These are not verified BMW calibration values:
 
 - **B — TunerOS realistic simplification:** vehicle motion is initially non-negative, with no reverse
-  dynamics despite `-1` being reserved as the reverse gear representation.
+  dynamics. Phase 1C validates only neutral (`0`) and forward gears (`1..6`); reverse remains
+  unimplemented.
 - **B — TunerOS realistic simplification:** one normalized engine-load value and one aggregate,
   non-positive timing-correction value stand in for much richer controller and cylinder-level data.
 - **C — TunerOS synthetic:** normalized positions use `[0, 1]`; profile and calibration identifiers
@@ -130,8 +131,8 @@ Initial-state ownership is:
 - vehicle-model defaults: load/throttle relationships, manifold-pressure ratio, lambda, ignition
   baseline, requested boost, timing correction, targets, and time constants.
 
-All implemented Phase 1B scenarios are stationary and require neutral initial gear and zero speed.
-IDLE retains its Phase 1A initial state and observable numerical behavior.
+The Phase 1B stationary scenarios require neutral initial gear and zero speed. IDLE retains its
+Phase 1A initial state and observable numerical behavior.
 
 ### COLD_START
 
@@ -154,5 +155,49 @@ replace them through `SimulationInitialConditions`. It uses normal idle inputs a
 bounded thermal response for a default five-minute simulated run. It adds no artificial behavior
 solely to distinguish it from IDLE.
 
-CITY, HIGHWAY, SPIRITED, WOT_PULL, and DYNO_PULL remain unsupported. No moving-vehicle dynamics are
-implemented.
+## Phase 1C CITY scenario and drivetrain simplification
+
+CITY adds the first moving-vehicle behavior without claiming a physical drivetrain model. The
+scenario remains a stateless, integer-time input schedule. It supplies accelerator, requested load,
+and stationary intent; it never assigns speed, gear, RPM, or manifold pressure. The vehicle model
+owns those resulting values.
+
+The default CITY initial state is engine-running at 750 rpm, stationary and neutral, with coolant at
+ambient + 35 degrees Celsius, oil at ambient + 30 degrees Celsius, intake air at ambient + 5 degrees
+Celsius, and battery voltage at 14.2 V. These offsets and every value below are TunerOS modeling
+assumptions.
+
+Longitudinal response is intentionally synthetic: accelerator demand provides up to 2.0 m/s^2,
+rolling resistance is 0.45 m/s^2 while moving, linear speed resistance is
+`0.025 * speed` m/s^2, and stationary intent applies 1.5 m/s^2 of deceleration. Integration uses the
+configured fixed-step duration. This is not a force balance and introduces no mass, torque, tire,
+clutch, or road-grade model.
+
+CITY uses a deterministic hypothetical manual-driver schedule: first gear below 4.5 m/s, second
+below 8.0 m/s, third below 12.0 m/s, and fourth at higher CITY speeds. Neutral is selected only when
+stationary intent has brought speed to zero. This is neither automatic-transmission logic nor an
+EGS or clutch model. Engine speed is directly coupled to vehicle speed by the following synthetic
+factors and clamped to the 750 rpm idle floor and profile redline:
+
+| Gear | RPM per m/s |
+| ---: | ---: |
+| 1 | 310 |
+| 2 | 200 |
+| 3 | 145 |
+| 4 | 110 |
+| 5 | 90 |
+| 6 | 75 |
+
+The 105-second default schedule contains an initial 5-second idle, acceleration to 20 seconds,
+cruise demand to 32 seconds, coast/deceleration to 45 seconds, a stop through 55 seconds, a second
+acceleration to 75 seconds, cruise demand to 88 seconds, deceleration to 100 seconds, and a final
+stop. Exact input values and interval boundaries are recorded in
+[Simulation contracts](SIMULATION_CONTRACTS.md).
+
+CITY remains naturally aspirated in the simplified pressure response: requested boost is zero and
+MAP moves from the 0.40 ambient-pressure idle ratio toward, but never above, ambient as requested
+load rises. This is an illustrative vacuum/load relationship, not an N54 turbo or throttle model.
+
+HIGHWAY, SPIRITED, WOT_PULL, and DYNO_PULL remain unsupported. Phase 1C adds no reverse motion,
+engine stopping, torque production, road load, turbo dynamics, clutch behavior, wheel dynamics, or
+traction behavior.

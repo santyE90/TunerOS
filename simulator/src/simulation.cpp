@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <utility>
 
+#include "tuneros/simulator/drivetrain.hpp"
 #include "tuneros/simulator/model_parameters.hpp"
 #include "tuneros/simulator/scenario.hpp"
 #include "tuneros/simulator/vehicle_profiles.hpp"
@@ -22,7 +23,7 @@ constexpr double kMicrosecondsPerSecond = 1'000'000.0;
 
 [[nodiscard]] bool is_supported(ScenarioId scenario) noexcept {
   return scenario == ScenarioId::kIdle || scenario == ScenarioId::kColdStart ||
-         scenario == ScenarioId::kWarmup;
+         scenario == ScenarioId::kWarmup || scenario == ScenarioId::kCity;
 }
 
 [[nodiscard]] double cold_start_fraction(double requested_scenario_load) noexcept {
@@ -42,7 +43,7 @@ void validate_configuration(const SimulationRunConfiguration& configuration) {
     throw std::invalid_argument("simulation initial conditions are invalid");
   }
   if (!is_supported(configuration.scenario)) {
-    throw std::invalid_argument("scenario is not implemented in Phase 1B");
+    throw std::invalid_argument("scenario is not implemented in Phase 1C");
   }
   if (configuration.duration.microseconds == 0) {
     throw std::invalid_argument("simulation duration must be positive");
@@ -64,8 +65,7 @@ void validate_configuration(const SimulationRunConfiguration& configuration) {
   }
   if (configuration.initial_conditions.vehicle_speed_meters_per_second != 0.0 ||
       configuration.initial_conditions.current_gear != 0) {
-    throw std::invalid_argument(
-        "implemented stationary scenarios must start stationary and neutral");
+    throw std::invalid_argument("implemented scenarios must start stationary and neutral");
   }
 
   const bool should_start_running = configuration.scenario != ScenarioId::kColdStart;
@@ -118,15 +118,10 @@ void apply_scenario_inputs(VehicleState& state, const ScenarioInputs& inputs) no
   state.accelerator_pedal_position = inputs.accelerator_pedal_position;
   state.requested_scenario_load = inputs.requested_scenario_load;
   state.ambient_pressure_kpa_absolute = inputs.environment.ambient_pressure_kpa_absolute;
-
-  if (inputs.command_vehicle_stationary) {
-    state.vehicle_speed_meters_per_second = 0.0;
-    state.current_gear = 0;
-  }
 }
 
-void evolve_vehicle_state(VehicleState& state, const ScenarioInputs& inputs,
-                          double delta_time_seconds) noexcept {
+void evolve_vehicle_state(VehicleState& state, const ScenarioInputs& inputs, ScenarioId scenario,
+                          const VehicleProfile& profile, double delta_time_seconds) noexcept {
   using namespace model_parameters;
 
   apply_scenario_inputs(state, inputs);
@@ -151,18 +146,45 @@ void evolve_vehicle_state(VehicleState& state, const ScenarioInputs& inputs,
     return;
   }
 
-  const double startup_fraction = cold_start_fraction(inputs.requested_scenario_load);
-  const double engine_speed_target =
-      kIdleTargetRpm + (kColdStartElevatedRpmTarget - kIdleTargetRpm) * startup_fraction;
-  const double rpm_time_constant = startup_fraction > 0.0 ? kColdStartRpmResponseTimeConstantSeconds
-                                                          : kIdleRpmTimeConstantSeconds;
-  state.engine_speed_rpm =
-      approach(state.engine_speed_rpm, engine_speed_target, rpm_time_constant, delta_time_seconds);
-  state.engine_load = kIdleEngineLoad + kColdStartEngineLoadIncrease * startup_fraction;
-  state.throttle_position = kIdleThrottlePosition + kColdStartThrottleIncrease * startup_fraction;
+  if (scenario == ScenarioId::kCity) {
+    const auto drivetrain = evolve_city_drivetrain(
+        state.vehicle_speed_meters_per_second, inputs.accelerator_pedal_position,
+        inputs.command_vehicle_stationary, delta_time_seconds, profile);
+    state.vehicle_speed_meters_per_second = drivetrain.vehicle_speed_meters_per_second;
+    state.current_gear = drivetrain.selected_gear;
+    state.engine_speed_rpm = drivetrain.engine_speed_rpm;
+    state.engine_load =
+        std::clamp(kCityEngineLoadOffset + inputs.requested_scenario_load, 0.0, 1.0);
+    state.throttle_position = std::clamp(
+        kIdleThrottlePosition + kCityThrottlePerAccelerator * inputs.accelerator_pedal_position,
+        0.0, 1.0);
 
-  state.manifold_pressure_kpa_absolute =
-      inputs.environment.ambient_pressure_kpa_absolute * kIdleManifoldPressureFractionOfAmbient;
+    const double load_above_idle =
+        std::clamp((inputs.requested_scenario_load - kIdleRequestedScenarioLoad) /
+                       (1.0 - kIdleRequestedScenarioLoad),
+                   0.0, 1.0);
+    const double manifold_pressure_fraction =
+        kIdleManifoldPressureFractionOfAmbient +
+        (kCityMaximumManifoldPressureFractionOfAmbient - kIdleManifoldPressureFractionOfAmbient) *
+            load_above_idle;
+    state.manifold_pressure_kpa_absolute =
+        inputs.environment.ambient_pressure_kpa_absolute * manifold_pressure_fraction;
+  } else {
+    state.vehicle_speed_meters_per_second = 0.0;
+    state.current_gear = 0;
+    const double startup_fraction = cold_start_fraction(inputs.requested_scenario_load);
+    const double engine_speed_target =
+        kIdleTargetRpm + (kColdStartElevatedRpmTarget - kIdleTargetRpm) * startup_fraction;
+    const double rpm_time_constant = startup_fraction > 0.0
+                                         ? kColdStartRpmResponseTimeConstantSeconds
+                                         : kIdleRpmTimeConstantSeconds;
+    state.engine_speed_rpm = approach(state.engine_speed_rpm, engine_speed_target,
+                                      rpm_time_constant, delta_time_seconds);
+    state.engine_load = kIdleEngineLoad + kColdStartEngineLoadIncrease * startup_fraction;
+    state.throttle_position = kIdleThrottlePosition + kColdStartThrottleIncrease * startup_fraction;
+    state.manifold_pressure_kpa_absolute =
+        inputs.environment.ambient_pressure_kpa_absolute * kIdleManifoldPressureFractionOfAmbient;
+  }
   state.requested_boost_kpa_gauge = 0.0;
 
   state.coolant_temperature_celsius =
@@ -218,6 +240,12 @@ SimulationRunConfiguration make_default_warmup_run_configuration(EnvironmentStat
       environment, make_warmup_initial_conditions(environment));
 }
 
+SimulationRunConfiguration make_default_city_run_configuration(EnvironmentState environment) {
+  return make_run_configuration(
+      ScenarioId::kCity, SimulationDuration{model_parameters::kDefaultCityDurationMicroseconds},
+      environment, make_city_initial_conditions(environment));
+}
+
 VehicleSimulation::VehicleSimulation(SimulationRunConfiguration configuration)
     : configuration_(std::move(configuration)), clock_(configuration_.fixed_step) {
   validate_configuration(configuration_);
@@ -238,7 +266,8 @@ bool VehicleSimulation::tick() {
       scenario_inputs_for(configuration_.scenario, clock_.timestamp(), configuration_.environment);
   const double delta_time_seconds =
       static_cast<double>(clock_.fixed_step().microseconds) / kMicrosecondsPerSecond;
-  evolve_vehicle_state(state_, inputs, delta_time_seconds);
+  evolve_vehicle_state(state_, inputs, configuration_.scenario, configuration_.vehicle_profile,
+                       delta_time_seconds);
   state_.timestamp = clock_.timestamp();
   state_.run_state = state_.timestamp.microseconds == configuration_.duration.microseconds
                          ? SimulationRunState::kCompleted

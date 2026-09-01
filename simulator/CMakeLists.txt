@@ -1,5 +1,6 @@
 add_library(tuneros_simulator STATIC
     src/contracts.cpp
+    src/drivetrain.cpp
     src/initial_conditions.cpp
     src/scenario.cpp
     src/simulation.cpp
@@ -78,4 +79,18 @@ if(BUILD_TESTING)
     endif()
 
     add_test(NAME simulator.phase1b COMMAND tuneros_phase1b_tests)
+
+    add_executable(tuneros_city_tests
+        tests/city_test.cpp
+    )
+    target_link_libraries(tuneros_city_tests PRIVATE TunerOS::Simulator)
+    target_compile_features(tuneros_city_tests PRIVATE cxx_std_20)
+
+    if(MSVC)
+        target_compile_options(tuneros_city_tests PRIVATE /W4 /permissive-)
+    else()
+        target_compile_options(tuneros_city_tests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+
+    add_test(NAME simulator.city COMMAND tuneros_city_tests)
 endif()

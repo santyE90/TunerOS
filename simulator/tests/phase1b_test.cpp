@@ -63,7 +63,13 @@ bool test_initial_conditions_validation() {
 
   invalid = cold;
   invalid.current_gear = 7;
-  return expect(!is_valid(invalid, profile), "Initial gear must fit the selected profile");
+  if (!expect(!is_valid(invalid, profile), "Initial gear must fit the selected profile")) {
+    return false;
+  }
+
+  invalid = cold;
+  invalid.current_gear = -1;
+  return expect(!is_valid(invalid, profile), "Reverse gear remains unsupported");
 }
 
 bool test_environment_and_configurable_initial_state() {
@@ -295,8 +301,9 @@ bool test_cold_start_step_alignment() {
 
 bool test_still_unsupported_scenarios() {
   constexpr std::array unsupported{
-      ScenarioId::kCity,     ScenarioId::kHighway,
-      ScenarioId::kSpirited, ScenarioId::kWideOpenThrottlePull,
+      ScenarioId::kHighway,
+      ScenarioId::kSpirited,
+      ScenarioId::kWideOpenThrottlePull,
       ScenarioId::kDynoPull,
   };
   for (const auto scenario : unsupported) {

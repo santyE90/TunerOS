@@ -26,6 +26,8 @@ struct SimulationRunConfiguration {
     EnvironmentState environment = {});
 [[nodiscard]] SimulationRunConfiguration make_default_warmup_run_configuration(
     EnvironmentState environment = {});
+[[nodiscard]] SimulationRunConfiguration make_default_city_run_configuration(
+    EnvironmentState environment = {});
 
 class VehicleSimulation {
  public:

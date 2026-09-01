@@ -51,4 +51,48 @@ inline constexpr std::uint64_t kDefaultIdleDurationMicroseconds = 60'000'000;
 inline constexpr std::uint64_t kDefaultColdStartDurationMicroseconds = 90'000'000;
 inline constexpr std::uint64_t kDefaultWarmupDurationMicroseconds = 300'000'000;
 
+// Phase 1C CITY and drivetrain assumptions. These are synthetic TunerOS values.
+inline constexpr double kCityMaximumDriveAccelerationMetersPerSecondSquared = 2.0;
+inline constexpr double kCityRollingDecelerationMetersPerSecondSquared = 0.45;
+inline constexpr double kCityDragDecelerationPerMeterPerSecond = 0.025;
+inline constexpr double kCityStopDecelerationMetersPerSecondSquared = 1.5;
+inline constexpr double kCityStopSpeedEpsilonMetersPerSecond = 0.05;
+
+inline constexpr double kGear1RpmPerMeterPerSecond = 310.0;
+inline constexpr double kGear2RpmPerMeterPerSecond = 200.0;
+inline constexpr double kGear3RpmPerMeterPerSecond = 145.0;
+inline constexpr double kGear4RpmPerMeterPerSecond = 110.0;
+inline constexpr double kGear5RpmPerMeterPerSecond = 90.0;
+inline constexpr double kGear6RpmPerMeterPerSecond = 75.0;
+inline constexpr double kCitySecondGearThresholdMetersPerSecond = 4.5;
+inline constexpr double kCityThirdGearThresholdMetersPerSecond = 8.0;
+inline constexpr double kCityFourthGearThresholdMetersPerSecond = 12.0;
+
+inline constexpr double kCityEngineLoadOffset = 0.08;
+inline constexpr double kCityThrottlePerAccelerator = 0.60;
+inline constexpr double kCityMaximumManifoldPressureFractionOfAmbient = 1.0;
+
+inline constexpr double kCityInitialCoolantAboveAmbientCelsius = 35.0;
+inline constexpr double kCityInitialOilAboveAmbientCelsius = 30.0;
+inline constexpr double kCityInitialIntakeAirAboveAmbientCelsius = 5.0;
+
+inline constexpr double kCityFirstAccelerationAccelerator = 0.45;
+inline constexpr double kCityFirstAccelerationLoad = 0.50;
+inline constexpr double kCityFirstCruiseAccelerator = 0.30;
+inline constexpr double kCityFirstCruiseLoad = 0.35;
+inline constexpr double kCitySecondAccelerationAccelerator = 0.55;
+inline constexpr double kCitySecondAccelerationLoad = 0.60;
+inline constexpr double kCitySecondCruiseAccelerator = 0.36;
+inline constexpr double kCitySecondCruiseLoad = 0.40;
+
+inline constexpr std::uint64_t kCityFirstDepartureTimestampMicroseconds = 5'000'000;
+inline constexpr std::uint64_t kCityFirstCruiseTimestampMicroseconds = 20'000'000;
+inline constexpr std::uint64_t kCityFirstDecelerationTimestampMicroseconds = 32'000'000;
+inline constexpr std::uint64_t kCityFirstStopIntentTimestampMicroseconds = 45'000'000;
+inline constexpr std::uint64_t kCitySecondDepartureTimestampMicroseconds = 55'000'000;
+inline constexpr std::uint64_t kCitySecondCruiseTimestampMicroseconds = 75'000'000;
+inline constexpr std::uint64_t kCityFinalDecelerationTimestampMicroseconds = 88'000'000;
+inline constexpr std::uint64_t kCityFinalStopIntentTimestampMicroseconds = 100'000'000;
+inline constexpr std::uint64_t kDefaultCityDurationMicroseconds = 105'000'000;
+
 }  // namespace tuneros::simulator::model_parameters

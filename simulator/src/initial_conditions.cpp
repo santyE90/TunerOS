@@ -18,8 +18,10 @@ bool is_valid(const SimulationInitialConditions& conditions,
          std::isfinite(conditions.battery_voltage_volts) &&
          conditions.battery_voltage_volts >= 0.0 &&
          std::isfinite(conditions.vehicle_speed_meters_per_second) &&
-         conditions.vehicle_speed_meters_per_second >= 0.0 && gear >= -1 &&
-         gear <= static_cast<int>(profile.forward_gear_count);
+         conditions.vehicle_speed_meters_per_second >= 0.0 && gear >= 0 &&
+         gear <= static_cast<int>(profile.forward_gear_count) &&
+         (conditions.vehicle_speed_meters_per_second == 0.0 ||
+          (conditions.engine_running && gear > 0));
 }
 
 SimulationInitialConditions make_idle_initial_conditions(
@@ -69,6 +71,24 @@ SimulationInitialConditions make_warmup_initial_conditions(
           environment.ambient_temperature_celsius + kWarmupOilAboveAmbientCelsius,
       .intake_air_temperature_celsius =
           environment.ambient_temperature_celsius + kWarmupIntakeAirAboveAmbientCelsius,
+      .battery_voltage_volts = kChargingVoltageVolts,
+      .vehicle_speed_meters_per_second = 0.0,
+      .current_gear = 0,
+  };
+}
+
+SimulationInitialConditions make_city_initial_conditions(
+    const EnvironmentState& environment) noexcept {
+  using namespace model_parameters;
+  return {
+      .engine_running = true,
+      .engine_speed_rpm = kIdleTargetRpm,
+      .coolant_temperature_celsius =
+          environment.ambient_temperature_celsius + kCityInitialCoolantAboveAmbientCelsius,
+      .oil_temperature_celsius =
+          environment.ambient_temperature_celsius + kCityInitialOilAboveAmbientCelsius,
+      .intake_air_temperature_celsius =
+          environment.ambient_temperature_celsius + kCityInitialIntakeAirAboveAmbientCelsius,
       .battery_voltage_volts = kChargingVoltageVolts,
       .vehicle_speed_meters_per_second = 0.0,
       .current_gear = 0,

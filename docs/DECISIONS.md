@@ -24,5 +24,8 @@ a dated superseding entry.
 | Use exact first-order convergence for continuous state | `target + (current - target) * exp(-dt/tau)` is deterministic, bounded for positive steps, and consistent across reasonable fixed-step choices. The parameters are TunerOS assumptions. |
 | Keep scenarios stateless and derived from simulation time | A scenario returns inputs for a scenario ID, integer timestamp, and environment. Reset therefore needs no hidden scenario-state cleanup, and schedule boundaries are directly testable. |
 | Configure focused initial conditions instead of cloning VehicleState | Engine state/RPM, temperatures, voltage, speed, and gear materially affect current scenarios; remaining state is derived from profile, environment, scenario inputs, or model defaults. |
+| Use synthetic direct speed-to-RPM factors for Phase 1C | Direct per-gear factors make gear/RPM relationships obvious without implying verified BMW ratios, tire dimensions, clutch behavior, or torque multiplication. |
+| Treat CITY gear changes as scenario-controlled manual-driver choices | Speed thresholds select discrete gears for the six-speed manual reference profile. This is not an automatic transmission, EGS, or clutch simulation. |
+| Use a minimal longitudinal response instead of force balance | Accelerator-derived drive acceleration minus synthetic rolling and speed-dependent loss produces bounded signals without torque curves, mass, tires, or wheel physics. |
 | Avoid unnecessary distributed or units infrastructure | Message brokers, cloud services, and a dimensional-analysis library add no Phase 0 engineering value. |
 | Defer application frameworks and schemas | FastAPI, ORMs, database migrations, and CAN libraries should follow concrete requirements. |

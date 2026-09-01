@@ -8,7 +8,7 @@ Status notation: **complete** is validated foundation; **planned** is not implem
 | 0B | Engineering Contracts & Vehicle Specification | **Complete** |
 | 1A | Deterministic Simulation Core | **Complete** |
 | 1B | Initial Conditions & Thermal Scenario Expansion | **Complete** |
-| 1C | First Moving-Vehicle Scenario | Planned |
+| 1C | First Moving-Vehicle Scenario | **Complete** |
 | 2 | Virtual CAN Network | Planned |
 | 3 | ECU Systems | Planned |
 | 4 | DBC & Signal Layer | Planned |
@@ -37,10 +37,14 @@ Phase 1A implements the first deterministic vehicle core:
 Phase 1B adds explicit initial-condition/environment configuration, stateless time-derived scenario
 inputs, `COLD_START`, `WARMUP`, exact reset/replay behavior, and long-run/cross-step tests.
 
-Phase 1C may add the first moving-vehicle scenario with simplified speed and gear behavior,
-time-varying accelerator/load input, and the minimum drivetrain abstraction needed to relate them.
-It should remain deterministic and vehicle-side; clutch detail, wheel physics, ECU, and CAN work
-stay out of scope until their later phases.
+Phase 1C adds CITY with time-varying accelerator/load input, deterministic longitudinal speed,
+scenario-controlled forward gears, synthetic speed-to-RPM factors, two stops, and cross-step tests.
+It remains a signal-generation model: clutch detail, torque curves, wheel physics, and boost are not
+modeled.
+
+The recommended next step is Phase 2 preparation: specify the first synthetic ECU publications, CAN
+frame contract, and virtual transport boundary before implementing them. The existing stationary and
+moving scenarios now provide enough deterministic source signals for that work.
 
 CAN, ECU publication, diagnostics, calibration behavior, and frontend product work remain later
 phases. A later phase begins only after its required contracts and authenticity assumptions are
