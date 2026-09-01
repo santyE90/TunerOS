@@ -149,6 +149,8 @@ activemq-data/
 
 # Environments
 .env
+.env.*
+!.env.example
 .envrc
 .venv
 env/
@@ -216,3 +218,53 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Node.js / Next.js
+node_modules/
+.next/
+out/
+.turbo/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.tsbuildinfo
+
+# CMake and compiled C/C++ artifacts
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+Testing/
+compile_commands.json
+*.a
+*.lib
+*.dll
+*.dylib
+*.exe
+*.obj
+*.o
+*.pdb
+
+# Editors and IDE-local state
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.user
+*.suo
+*.VC.db
+*.VC.opendb
+
+# Operating system metadata
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# JavaScript and generic coverage output
+coverage/
+.nyc_output/
+
+# Miscellaneous logs
+logs/
+*.log
