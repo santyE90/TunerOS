@@ -1,14 +1,15 @@
 # TunerOS
 
-TunerOS is a BMW-focused automotive software engineering platform in its foundation phase. Its
+TunerOS is a BMW-focused automotive software engineering platform in its early simulation phase. Its
 long-term purpose is to make simulated vehicle behavior observable through the same boundaries an
 automotive telemetry system would use: ECUs, binary CAN frames, decoded signals, backend services,
-and a browser interface. The first reference vehicle will be a 2010 BMW E90 335i with the N54
+and a browser interface. The first reference vehicle is a 2010 BMW E90 335i with the N54
 engine.
 
-> **Current status:** Phase 0A provides repository structure, toolchains, documentation, CI, and
-> local PostgreSQL infrastructure only. Vehicle simulation, ECU behavior, CAN frames/DBC data,
-> telemetry, diagnostics, tuning, and the product dashboard are not implemented.
+> **Current status:** Phase 0 and Phase 1A are complete. The C++ simulator now provides a
+> deterministic fixed-step clock, the reference E90/N54 profile, and a minimal IDLE run with RPM,
+> thermal, intake-air, and charging-voltage evolution. ECU behavior, CAN/DBC, telemetry,
+> diagnostics, tuning, additional scenarios, and product dashboard features are not implemented.
 
 ## Architecture at a glance
 
@@ -31,7 +32,7 @@ backend/       Minimal importable Python package; future backend services
 can/           Future CAN transport and DBC boundary
 frontend/      Minimal Next.js and TypeScript application
 shared/        Future language-neutral contracts and fixtures
-simulator/     C++20 library and lightweight CTest
+simulator/     C++20 contracts and deterministic Phase 1A IDLE simulation
 tests/python/  Python tests
 docs/          Product and engineering specifications
 .github/       Continuous integration
@@ -71,7 +72,7 @@ ctest --test-dir build/cpp -C Debug --output-on-failure
 Formatting is configured by `.clang-format`; when `clang-format` is installed, check it with:
 
 ```powershell
-clang-format --dry-run --Werror simulator/include/tuneros/simulator/version.hpp simulator/src/version.cpp simulator/tests/version_test.cpp
+clang-format --dry-run --Werror (rg --files simulator -g '*.hpp' -g '*.cpp')
 ```
 
 ## Frontend setup and checks
@@ -111,7 +112,8 @@ database.
 - [Product definition](docs/PRODUCT.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Roadmap](docs/ROADMAP.md)
-- [Vehicle model boundaries](docs/VEHICLE_MODEL.md)
+- [Vehicle model specification](docs/VEHICLE_MODEL.md)
+- [Simulation contracts](docs/SIMULATION_CONTRACTS.md)
 - [CAN design](docs/CAN_DESIGN.md)
 - [Diagnostics direction](docs/DIAGNOSTICS.md)
 - [Architecture decisions](docs/DECISIONS.md)

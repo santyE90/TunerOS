@@ -1,11 +1,13 @@
 # Roadmap
 
-Status notation: **current** means foundation work in progress; **planned** means not implemented.
+Status notation: **complete** is validated foundation; **planned** is not implemented.
 
 | Phase | Scope | Status |
 | --- | --- | --- |
-| 0 | Foundation & Engineering Specification | **Current: Phase 0A** |
-| 1 | Vehicle Simulation Core | Planned |
+| 0A | Repository Foundation & Engineering Scaffold | **Complete** |
+| 0B | Engineering Contracts & Vehicle Specification | **Complete** |
+| 1A | Deterministic Simulation Core | **Complete** |
+| 1B | Scenario and Vehicle-Model Expansion | Planned |
 | 2 | Virtual CAN Network | Planned |
 | 3 | ECU Systems | Planned |
 | 4 | DBC & Signal Layer | Planned |
@@ -23,7 +25,18 @@ Status notation: **current** means foundation work in progress; **planned** mean
 | 16 | Physical CAN / OBD Readiness | Planned |
 | 17 | Release / Portfolio Readiness | Planned |
 
-Phase boundaries may be refined as the system is learned. A later phase should begin only after its
-required contracts and authenticity assumptions are documented and the preceding foundation remains
-testable.
+Phase 1A implements the first deterministic vehicle core:
 
+- fixed-step `SimulationClock` progression, pause, reset, duration, and tests;
+- reference E90/N54 `VehicleProfile` factory;
+- IDLE scenario inputs separated from vehicle response;
+- internally consistent RPM, stationary vehicle, thermal, intake-air, and voltage evolution;
+- deterministic state-sequence, alternate-step, and invariant tests.
+
+Phase 1B may add explicit initial-condition configuration and the `COLD_START` and `WARMUP`
+scenarios, then factor additional vehicle-model components only where those scenarios require them.
+It should remain deterministic and vehicle-side; ECU and CAN work stays in later phases.
+
+CAN, ECU publication, diagnostics, calibration behavior, and frontend product work remain later
+phases. A later phase begins only after its required contracts and authenticity assumptions are
+documented and the preceding foundation remains testable.
