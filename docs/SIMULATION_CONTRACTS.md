@@ -1,8 +1,9 @@
 # Simulation contracts
 
-This specification defines the stable engineering contracts and records the Phase 1A deterministic
-IDLE implementation. Phase 1A adds only vehicle-side clock, scenario input, orchestration, and
-minimal state evolution; downstream ECU/CAN and application layers remain unimplemented.
+This specification defines the stable engineering contracts and records the Phase 1A–1B
+deterministic simulation implementation. Only vehicle-side clock, initial/environment configuration,
+scenario input, orchestration, and minimal state evolution exist; downstream ECU/CAN and application
+layers remain unimplemented.
 
 ## Simulation time
 
@@ -137,7 +138,7 @@ boundaries; it does not replace component-specific transition invariants.
 State ownership remains one-way:
 
 ```text
-Scenario + Environment + VehicleProfile
+Scenario + Environment + InitialConditions + VehicleProfile
                   -> Vehicle simulation owns VehicleState
                   -> ECUs observe state and own controller/internal ECU state
                   -> ECUs publish selected values as binary CAN signals
@@ -152,10 +153,13 @@ bypass ECU → CAN → DBC, even if doing so is convenient.
 
 ## Scenario contract
 
-A `Scenario` is deterministic, time-indexed input data. Its definition contains an identifier,
-simulation duration, initial conditions, driver inputs over simulation time, environment inputs, and
-optional descriptive metadata. Planned identifiers are `IDLE`, `COLD_START`, `WARMUP`, `CITY`,
-`HIGHWAY`, `SPIRITED`, `WOT_PULL`, and `DYNO_PULL`; only IDLE is implemented in Phase 1A.
+A `Scenario` is deterministic, time-indexed input data. `scenario_inputs_for()` is a stateless
+function of scenario identifier, integer simulation timestamp, and environment. It returns only
+accelerator, requested load, stationary command, engine-start request, and environment snapshot.
+Scenario phases are therefore fully time-derived and need no resettable hidden state.
+
+Planned identifiers are `IDLE`, `COLD_START`, `WARMUP`, `CITY`, `HIGHWAY`, `SPIRITED`, `WOT_PULL`,
+and `DYNO_PULL`. IDLE, COLD_START, and WARMUP are implemented through Phase 1B.
 
 A scenario provides stimuli. It does **not** set resulting rpm every tick, generate CAN frames,
 create diagnostic faults, implement controllers, or manipulate frontend state. The vehicle model
@@ -182,8 +186,8 @@ IDLE is a category B realistic simplification, not an implementation of BMW idle
 - engine-running battery voltage must stay in the category B range 13.0–15.0 V;
 - produce no faults and no CAN output because neither subsystem exists in Phase 1.
 
-Other scenario identifiers remain reserved. Constructing a Phase 1A simulation for any of them
-throws `std::invalid_argument` rather than substituting IDLE behavior.
+CITY, HIGHWAY, SPIRITED, WOT_PULL, and DYNO_PULL remain reserved. Constructing a Phase 1B simulation
+for any of them throws `std::invalid_argument` rather than substituting implemented behavior.
 
 ## Phase 1A numerical model and parameters
 
@@ -218,9 +222,67 @@ inputs and environment snapshots are applied each tick. Stationary/neutral state
 pressure ratio, lambda, and ignition values are fixed deterministic baselines. Requested boost and
 timing correction are reserved fixed-zero placeholders for later controller phases.
 
-`SimulationRunConfiguration` contains only vehicle profile, scenario, duration, fixed step, and
-environment. Its default IDLE run is 60 seconds at 10 ms. Duration and step must be positive, and
-duration must contain an integer number of fixed steps so completion has an exact timestamp.
+`SimulationRunConfiguration` contains only vehicle profile, scenario, duration, fixed step,
+environment, and focused initial conditions. Its default IDLE run is 60 seconds at 10 ms. Duration
+and step must be positive, and duration must contain an integer number of fixed steps so completion
+has an exact timestamp.
+
+## Phase 1B initial-condition contract
+
+`SimulationInitialConditions` contains engine-running state, engine RPM, coolant/oil/intake-air
+temperatures, battery voltage, vehicle speed, and gear. It does not mirror scenario inputs,
+environment pressure, model targets, derived pressure, lambda, ignition, or run state.
+
+Validation requires finite/non-negative RPM, speed, and voltage; finite temperatures; RPM within the
+profile limit; and gear within the profile range. A stopped engine must have exactly zero RPM. The
+three implemented scenarios are stationary, so their run configurations additionally require zero
+initial speed and neutral gear. IDLE/WARMUP require an initially running engine; COLD_START requires
+an initially stopped engine.
+
+Default factories take an explicit `EnvironmentState` and build matching initial conditions. A
+caller may then replace any focused initial field before constructing `VehicleSimulation`.
+
+## Phase 1B COLD_START schedule
+
+All values are TunerOS modeling assumptions, not BMW specifications or calibration:
+
+- default duration: 90 seconds;
+- before 1,000,000 µs: engine-start request false, requested load `0.0`, engine exactly off at
+  `0 rpm`, battery target 12.6 V, and manifold pressure equal to ambient;
+- at exactly 1,000,000 µs: engine-start request becomes true and requested load becomes `0.40`;
+- from 1,000,000 through 21,000,000 µs: requested load decreases linearly from `0.40` to normal
+  idle `0.10`;
+- the vehicle model maps that request to an RPM target from 1,200 to 750 rpm, engine load from `0.48`
+  to `0.18`, and throttle from `0.10` to `0.06`;
+- RPM uses a 0.75 s time constant while elevated load remains, then the normal 1.5 s idle constant;
+- after engine start, voltage approaches 14.2 V and thermal state uses the existing bounded model.
+
+Cold-start coolant, oil, and intake air default to ambient temperature. No crank-voltage dip,
+starter physics, fuel enrichment, crank-angle behavior, misfire, or noise is modeled.
+
+## Phase 1B WARMUP behavior
+
+WARMUP defaults to 300 simulated seconds, engine-running at 750 rpm, with coolant at ambient + 20 °C,
+oil at ambient + 15 °C, intake air at ambient + 5 °C, and battery voltage at 14.2 V. It supplies the
+same zero-accelerator/normal-idle inputs as IDLE. Its purpose is configurable warmer initial state and
+long bounded thermal progression; it has no invented extra control behavior.
+
+## Reset and state evolution
+
+Each tick advances the integer clock first, evaluates stateless inputs for that resulting timestamp,
+then evolves `VehicleState` across that fixed step. This makes the cold-start transition observable at
+exactly 1,000,000 µs for both 10 ms and 20 ms steps. COLD_START configuration requires its 1-second
+request boundary and 20-second stabilization duration to be integer multiples of the selected step.
+
+Reset sets clock timestamp/tick count to zero, clears pause state, and copies the exact initial
+`VehicleState` captured from the immutable run configuration. Because scenario schedules are
+stateless, no scenario phase state exists to reset. Repeating a run after reset produces the same
+state sequence.
+
+Phase 1B dynamically models engine-running transition, RPM, engine load, throttle, manifold pressure,
+coolant/oil/intake-air temperatures, and battery voltage where scenario inputs require it. Vehicle
+speed and gear remain fixed stationary/neutral; requested boost, lambda, ignition baseline, and
+timing correction remain deterministic placeholders.
 
 ## Environment and configuration boundaries
 
@@ -234,7 +296,7 @@ Configuration remains separated by lifecycle and owner:
 | --- | --- | --- |
 | Build/developer | database connection, service ports | deployment/tooling; outside simulation state |
 | Vehicle profile | E90/N54 static identity, displacement, limits | selected before a run; immutable during it |
-| Simulation run | scenario, duration, fixed step, environment, future seed | per run |
+| Simulation run | scenario, duration, fixed step, environment, initial conditions, future seed | per run |
 | Calibration | future boost targets, ignition maps, lambda targets | controller configuration; not implemented |
 | Fault | future boost leak or sensor failure injection | explicit per run; not implemented |
 
@@ -248,7 +310,11 @@ These categories must not collapse into one global configuration object.
 - **DBC:** database description format used to map CAN payload bits to engineering signals.
 - **VehicleState:** authoritative pre-ECU physical/logical simulation snapshot.
 - **VehicleProfile:** relatively static BMW-focused vehicle configuration.
-- **Scenario:** deterministic time-indexed stimuli and initial/environment conditions.
+- **SimulationInitialConditions:** focused configurable starting engine, thermal, electrical, speed,
+  and gear values used to construct the initial `VehicleState`.
+- **Scenario:** deterministic time-indexed stimuli selected by scenario identifier.
+- **ScenarioInputs:** stateless, time-derived driver/environment/control requests consumed by the
+  vehicle model; never final physical outputs.
 - **SimulationClock:** fixed-step owner of simulation timestamp and tick progression.
 - **Telemetry:** decoded observations downstream of CAN/DBC, live or persisted.
 - **DTC:** diagnostic trouble code with a defined lifecycle.

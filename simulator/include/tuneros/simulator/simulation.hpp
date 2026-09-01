@@ -3,6 +3,7 @@
 #include <cstdint>
 
 #include "tuneros/simulator/contracts.hpp"
+#include "tuneros/simulator/initial_conditions.hpp"
 #include "tuneros/simulator/simulation_clock.hpp"
 
 namespace tuneros::simulator {
@@ -13,12 +14,18 @@ struct SimulationRunConfiguration {
   SimulationDuration duration{60'000'000};
   SimulationDuration fixed_step{kBaseSimulationStep};
   EnvironmentState environment{};
+  SimulationInitialConditions initial_conditions{};
 
   friend bool operator==(const SimulationRunConfiguration&,
                          const SimulationRunConfiguration&) = default;
 };
 
-[[nodiscard]] SimulationRunConfiguration make_default_idle_run_configuration();
+[[nodiscard]] SimulationRunConfiguration make_default_idle_run_configuration(
+    EnvironmentState environment = {});
+[[nodiscard]] SimulationRunConfiguration make_default_cold_start_run_configuration(
+    EnvironmentState environment = {});
+[[nodiscard]] SimulationRunConfiguration make_default_warmup_run_configuration(
+    EnvironmentState environment = {});
 
 class VehicleSimulation {
  public:

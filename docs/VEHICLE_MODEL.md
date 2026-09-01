@@ -114,3 +114,45 @@ assumptions, not BMW calibration or DME behavior.
 
 Vehicle speed stays 0 m/s and gear stays neutral. No drivetrain, torque, turbo, fueling, ignition
 control, ECU, CAN, diagnostic, or calibration model exists.
+
+## Phase 1B initial conditions and scenarios
+
+`SimulationInitialConditions` configures only starting values that materially affect the current
+model: engine-running state, engine RPM, coolant/oil/intake-air temperatures, battery voltage,
+vehicle speed, and gear. It deliberately does not duplicate `VehicleState`.
+
+Initial-state ownership is:
+
+- `VehicleProfile`: redline and valid gear range;
+- `EnvironmentState`: ambient temperature and absolute pressure;
+- `SimulationInitialConditions`: the eight configurable starting values above;
+- scenario inputs: accelerator, requested load, stationary command, and engine-start request;
+- vehicle-model defaults: load/throttle relationships, manifold-pressure ratio, lambda, ignition
+  baseline, requested boost, timing correction, targets, and time constants.
+
+All implemented Phase 1B scenarios are stationary and require neutral initial gear and zero speed.
+IDLE retains its Phase 1A initial state and observable numerical behavior.
+
+### COLD_START
+
+COLD_START is a TunerOS realistic simplification, not BMW/N54 startup strategy. It starts engine-off
+at zero RPM, with coolant/oil/intake air equal to configured ambient temperature, manifold pressure
+equal to ambient, and battery voltage at 12.6 V. At exactly 1.0 second of simulation time, the
+scenario requests engine start and an elevated normalized load of `0.40`. The vehicle model owns the
+transition to `engine_running`, charging voltage, manifold vacuum, and rising RPM.
+
+Elevated requested load decays linearly to the normal `0.10` idle request over 20 seconds. The
+vehicle model maps that input to a target that falls from 1,200 to 750 rpm and applies deterministic
+first-order response. No starter, enrichment, misfire, crank-angle, or alternator physics is modeled.
+The default run duration is 90 seconds.
+
+### WARMUP
+
+WARMUP begins engine-running at 750 rpm, stationary and neutral. Default coolant, oil, and intake-air
+temperatures are ambient + 20 °C, ambient + 15 °C, and ambient + 5 °C respectively; callers may
+replace them through `SimulationInitialConditions`. It uses normal idle inputs and the existing
+bounded thermal response for a default five-minute simulated run. It adds no artificial behavior
+solely to distinguish it from IDLE.
+
+CITY, HIGHWAY, SPIRITED, WOT_PULL, and DYNO_PULL remain unsupported. No moving-vehicle dynamics are
+implemented.

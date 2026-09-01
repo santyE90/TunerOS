@@ -6,10 +6,10 @@ automotive telemetry system would use: ECUs, binary CAN frames, decoded signals,
 and a browser interface. The first reference vehicle is a 2010 BMW E90 335i with the N54
 engine.
 
-> **Current status:** Phase 0 and Phase 1A are complete. The C++ simulator now provides a
-> deterministic fixed-step clock, the reference E90/N54 profile, and a minimal IDLE run with RPM,
-> thermal, intake-air, and charging-voltage evolution. ECU behavior, CAN/DBC, telemetry,
-> diagnostics, tuning, additional scenarios, and product dashboard features are not implemented.
+> **Current status:** Phase 0, Phase 1A, and Phase 1B are complete. The C++ simulator provides a
+> deterministic fixed-step clock, explicit environment and initial conditions, the reference
+> E90/N54 profile, and IDLE, COLD_START, and WARMUP scenarios. ECU behavior, CAN/DBC, moving-vehicle
+> dynamics, telemetry, diagnostics, tuning, and product dashboard features are not implemented.
 
 ## Architecture at a glance
 
@@ -32,7 +32,7 @@ backend/       Minimal importable Python package; future backend services
 can/           Future CAN transport and DBC boundary
 frontend/      Minimal Next.js and TypeScript application
 shared/        Future language-neutral contracts and fixtures
-simulator/     C++20 contracts and deterministic Phase 1A IDLE simulation
+simulator/     C++20 contracts and deterministic IDLE/COLD_START/WARMUP simulation
 tests/python/  Python tests
 docs/          Product and engineering specifications
 .github/       Continuous integration

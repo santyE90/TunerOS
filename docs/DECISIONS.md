@@ -21,6 +21,8 @@ a dated superseding entry.
 | Use SI-oriented canonical internal units and normalized `[0,1]` positions | Explicit boundary conversion prevents mixed-unit ambiguity; pressure names distinguish absolute and gauge values. |
 | Keep configuration categories separate | Build, profile, run, calibration, and fault data have different owners and lifecycles. |
 | Validate contract aggregates with explicit non-throwing helpers | Plain structs stay observable and easy to load; validation remains testable without hiding mutations in constructors. |
-| Use exact first-order convergence for Phase 1A continuous state | `target + (current - target) * exp(-dt/tau)` is deterministic, bounded for positive steps, and consistent across reasonable fixed-step choices. The parameters are TunerOS assumptions. |
+| Use exact first-order convergence for continuous state | `target + (current - target) * exp(-dt/tau)` is deterministic, bounded for positive steps, and consistent across reasonable fixed-step choices. The parameters are TunerOS assumptions. |
+| Keep scenarios stateless and derived from simulation time | A scenario returns inputs for a scenario ID, integer timestamp, and environment. Reset therefore needs no hidden scenario-state cleanup, and schedule boundaries are directly testable. |
+| Configure focused initial conditions instead of cloning VehicleState | Engine state/RPM, temperatures, voltage, speed, and gear materially affect current scenarios; remaining state is derived from profile, environment, scenario inputs, or model defaults. |
 | Avoid unnecessary distributed or units infrastructure | Message brokers, cloud services, and a dimensional-analysis library add no Phase 0 engineering value. |
 | Defer application frameworks and schemas | FastAPI, ORMs, database migrations, and CAN libraries should follow concrete requirements. |

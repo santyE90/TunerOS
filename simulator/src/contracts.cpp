@@ -33,6 +33,7 @@ bool is_valid(const VehicleState& state, const VehicleProfile& profile) noexcept
   return is_valid(profile) && is_normalized(state.accelerator_pedal_position) &&
          is_normalized(state.requested_scenario_load) && std::isfinite(state.engine_speed_rpm) &&
          state.engine_speed_rpm >= 0.0 && state.engine_speed_rpm <= profile.redline_rpm &&
+         (state.engine_running || state.engine_speed_rpm == 0.0) &&
          is_normalized(state.engine_load) && is_normalized(state.throttle_position) &&
          std::isfinite(state.vehicle_speed_meters_per_second) &&
          state.vehicle_speed_meters_per_second >= 0.0 && gear >= -1 &&

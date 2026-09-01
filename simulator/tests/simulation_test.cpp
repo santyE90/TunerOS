@@ -100,8 +100,9 @@ bool test_reference_profile() {
 bool test_idle_scenario_inputs() {
   const EnvironmentState environment{.ambient_temperature_celsius = 12.0,
                                      .ambient_pressure_kpa_absolute = 95.0};
-  const auto first = idle_scenario_input(SimulationTimestamp{0}, environment);
-  const auto later = idle_scenario_input(SimulationTimestamp{5'000'000}, environment);
+  const auto first = scenario_inputs_for(ScenarioId::kIdle, SimulationTimestamp{0}, environment);
+  const auto later =
+      scenario_inputs_for(ScenarioId::kIdle, SimulationTimestamp{5'000'000}, environment);
   return expect(first == later,
                 "Stable IDLE stimuli must not depend on wall-clock or tick timing") &&
          expect(first.accelerator_pedal_position == 0.0 &&
@@ -217,8 +218,8 @@ bool test_time_step_consistency() {
 
 bool test_unsupported_scenarios() {
   constexpr std::array unsupported{
-      ScenarioId::kColdStart, ScenarioId::kWarmup,   ScenarioId::kCity,
-      ScenarioId::kHighway,   ScenarioId::kSpirited, ScenarioId::kWideOpenThrottlePull,
+      ScenarioId::kCity,     ScenarioId::kHighway,
+      ScenarioId::kSpirited, ScenarioId::kWideOpenThrottlePull,
       ScenarioId::kDynoPull,
   };
 

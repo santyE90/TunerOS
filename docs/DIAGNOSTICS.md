@@ -17,4 +17,4 @@ make lifecycle and diagnostic behavior repeatable without conflating injected sy
 physics.
 
 Predictive diagnostics may later analyze accumulated sessions after deterministic diagnostics and
-data quality are established. Phase 1A implements none of these states, rules, records, or APIs.
+data quality are established. Phase 1B implements none of these states, rules, records, or APIs.

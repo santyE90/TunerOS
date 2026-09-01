@@ -3,7 +3,7 @@
 ## Intended data flow and ownership
 
 ```text
-VehicleProfile + Scenario + Environment + SimulationClock
+VehicleProfile + InitialConditions + Scenario + Environment + SimulationClock
                          -> Vehicle Model (authoritative VehicleState)
                          -> simulated ECUs (controller/ECU state)
                          -> binary CAN frames
@@ -53,13 +53,14 @@ simulator does not invent code generation or mirror the vehicle model into Pytho
 
 The authoritative simulation-time, unit, numerical, `VehicleState`, `VehicleProfile`, environment,
 scenario, determinism, and configuration contracts are in
-[Simulation contracts](SIMULATION_CONTRACTS.md). Phase 1A implements the simulation clock, reference
-profile factory, IDLE scenario inputs, and minimal deterministic vehicle response. It does not
-implement ECUs, CAN, telemetry, diagnostics, or other scenarios.
+[Simulation contracts](SIMULATION_CONTRACTS.md). Phases 1A–1B implement the simulation clock,
+reference profile factory, explicit initial conditions/environment, stateless scenario schedules for
+IDLE/COLD_START/WARMUP, and minimal deterministic vehicle response. They do not implement ECUs, CAN,
+telemetry, diagnostics, moving-vehicle dynamics, or other scenarios.
 
 ## Transport abstraction
 
 A future CAN transport interface will separate producers/consumers from the mechanism carrying a
 timestamped opaque frame. The first implementation can be in-process or Windows-friendly. Later
 adapters may target SocketCAN or physical CAN hardware without changing simulation, decoding, or
-application layers. Phase 1A does not design or implement this interface.
+application layers. Phase 1B does not design or implement this interface.

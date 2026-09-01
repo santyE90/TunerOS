@@ -20,11 +20,11 @@ from depending on simulator internals. Until CAN exists, simulator tests/tools m
 A future transport abstraction will deal in timestamped opaque CAN frames and isolate send/receive
 semantics from the underlying mechanism. Initial development must work well on Windows without
 requiring a Linux-only kernel facility. Later adapters may support SocketCAN and physical CAN/OBD
-hardware. No transport interface or hardware integration is implemented in Phase 1A.
+hardware. No transport interface or hardware integration is implemented in Phase 1B.
 
 ## Authenticity disclaimer
 
 Future CAN identifiers, payload layouts, cycle times, scaling, and DBC definitions created for
 TunerOS are **simulated and fictional unless they are explicitly identified as sourced, with the
 source and applicability documented**. Plausible values must not be described as authentic BMW CAN
-data. Phase 1A defines no CAN identifiers or DBC content.
+data. Phase 1B defines no CAN identifiers or DBC content.

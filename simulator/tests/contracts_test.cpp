@@ -112,5 +112,12 @@ int main() {
     return 1;
   }
 
+  state = valid_state();
+  state.engine_running = false;
+  if (is_valid(state, profile)) {
+    std::cerr << "An engine-off state must have exactly zero RPM\n";
+    return 1;
+  }
+
   return 0;
 }
