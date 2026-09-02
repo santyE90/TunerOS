@@ -10,10 +10,14 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from tuneros.api.models import (
     ServiceStateEventResponse,
+    SessionDetailResponse,
+    SessionReplayResponse,
+    SessionSummaryResponse,
     SignalDefinitionResponse,
     SignalHistoryResponse,
     SignalResponse,
     TelemetrySnapshotResponse,
+    TelemetrySourceResponse,
     TelemetryStatisticsResponse,
     TelemetryStatusResponse,
 )
@@ -22,10 +26,13 @@ from tuneros.api.serialization import (
     serialize_initial_snapshot,
     serialize_sample,
     serialize_service_state,
+    serialize_session_detail,
+    serialize_session_summary,
     serialize_snapshot,
     serialize_statistics,
     serialize_update,
 )
+from tuneros.session import SessionCatalog, SessionError
 from tuneros.telemetry import (
     SignalKey,
     SubscriberClosed,
@@ -48,14 +55,25 @@ def create_app(
     *,
     config: TelemetryServiceConfig | None = None,
     autostart: bool = True,
+    session_catalog: SessionCatalog | None = None,
+    initial_replay_session_id: str | None = None,
 ) -> FastAPI:
     if service is not None and config is not None:
         raise ValueError("pass service or config, not both")
     telemetry_service = service or TelemetryService(config)
+    sessions = session_catalog or SessionCatalog()
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-        if autostart:
+        if initial_replay_session_id is not None:
+            reader = sessions.reader(initial_replay_session_id)
+            telemetry_service.start_replay(
+                reader.frames,
+                session_id=reader.manifest.session_id,
+                session_name=reader.manifest.name,
+                wait_for_subscriber=True,
+            )
+        elif autostart:
             telemetry_service.start()
         try:
             yield
@@ -65,7 +83,7 @@ def create_app(
     app = FastAPI(
         title="TunerOS Telemetry API",
         version="1.0.0",
-        description="Live decoded telemetry from synthetic TunerOS simulation CAN.",
+        description="Live or replayed decoded telemetry from synthetic TunerOS CAN.",
         lifespan=lifespan,
     )
     app.state.telemetry_service = telemetry_service
@@ -73,7 +91,7 @@ def create_app(
         CORSMiddleware,
         allow_origins=list(DEFAULT_CORS_ORIGINS),
         allow_credentials=False,
-        allow_methods=["GET"],
+        allow_methods=["GET", "POST"],
         allow_headers=["*"],
     )
 
@@ -128,6 +146,64 @@ def create_app(
             latest_timestamp_microseconds=status.statistics.latest_timestamp_microseconds,
             total_frames=status.statistics.total_frames,
             total_signal_updates=status.statistics.total_signal_updates,
+        )
+
+    @app.get(f"{API_PREFIX}/source", response_model=TelemetrySourceResponse)
+    def get_source() -> TelemetrySourceResponse:
+        source = telemetry_service.source_status()
+        return TelemetrySourceResponse(
+            mode=source.mode,
+            session_id=source.session_id,
+            session_name=source.session_name,
+            recording=source.recording,
+            recorded_frame_count=source.recorded_frame_count,
+        )
+
+    @app.get(f"{API_PREFIX}/sessions", response_model=list[SessionSummaryResponse])
+    def get_sessions() -> list[SessionSummaryResponse]:
+        try:
+            return [
+                serialize_session_summary(manifest, dbc_compatible=sessions.compatibility(manifest))
+                for manifest in sessions.list()
+            ]
+        except SessionError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
+    @app.get(f"{API_PREFIX}/sessions/{{session_id}}", response_model=SessionDetailResponse)
+    def get_session(session_id: str) -> SessionDetailResponse:
+        try:
+            reader = sessions.reader(session_id, require_compatible_dbc=False)
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except SessionError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        return serialize_session_detail(
+            reader.manifest, dbc_compatible=sessions.compatibility(reader.manifest)
+        )
+
+    @app.post(
+        f"{API_PREFIX}/sessions/{{session_id}}/replay",
+        response_model=SessionReplayResponse,
+        status_code=202,
+    )
+    def replay_session(session_id: str) -> SessionReplayResponse:
+        try:
+            reader = sessions.reader(session_id)
+            telemetry_service.start_replay(
+                reader.frames,
+                session_id=reader.manifest.session_id,
+                session_name=reader.manifest.name,
+                wait_for_subscriber=True,
+            )
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except SessionError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        except RuntimeError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        return SessionReplayResponse(
+            session_id=reader.manifest.session_id,
+            session_name=reader.manifest.name,
         )
 
     @app.get(f"{API_PREFIX}/catalog", response_model=list[SignalDefinitionResponse])

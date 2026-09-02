@@ -62,5 +62,12 @@ a dated superseding entry.
 | Treat the WebSocket initial snapshot as frontend authority | REST supplies startup status and catalog, but the socket snapshot establishes telemetry state and sequence before deltas, eliminating snapshot/delta races. |
 | Keep frontend chart history bounded and presentation-only | Each numeric signal retains at most 180 points at deterministic 50,000-microsecond simulation-time spacing while every event still updates latest state. This handles unpaced bursts without inventing persistence. |
 | Keep frontend conversions at the presentation boundary | Overview may show m/s as km/h and normalized values as percent, while detailed telemetry retains canonical API values, units, timestamps, and provenance. |
+| Make raw CAN the canonical session representation | ID, DLC, payload, simulation timestamp, duplicates, and arrival order remain available for future re-decoding, diagnostics, and Raw CAN Explorer; decoded telemetry is regenerated. |
+| Use versioned filesystem artifacts before a database | A portable `<uuid>.tuneros` directory with inspectable JSON metadata and a compact binary stream is sufficient for one-run recording/replay without an ORM or high-frequency SQL writes. |
+| Reuse the fixed 19-byte raw record encoding | Gateway and session storage share explicit big-endian record semantics through one Python codec, while distinct stream/session headers keep protocols separate. |
+| Hash both DBC identity and frame content | SHA-256 detects schema reinterpretation and artifact corruption; replay fails by default when the installed authoritative DBC differs. |
+| Retain partial recordings as incomplete evidence | `<uuid>.partial` artifacts cannot appear in the normal catalog or replay but preserve frames and failure metadata for inspection. |
+| Allow only one telemetry source per service | Replay resets a fresh telemetry engine and cannot run beside a connecting/running live source; per-signal DME/DSC provenance remains unchanged. |
+| Keep Phase 5B replay full-run and unpaced | Replay preserves recorded order at maximum speed, waits for a subscriber, and uses a separate bounded 65,536-event delivery queue; seek, pause, rate control, and simulation-time sleeps remain deferred. |
 | Avoid unnecessary distributed or units infrastructure | Message brokers, cloud services, and a dimensional-analysis library add no Phase 0 engineering value. |
 | Defer persistence frameworks and schemas | ORMs, database migrations, brokers, and unrelated application infrastructure should follow concrete requirements. |

@@ -6,7 +6,15 @@ import type {
   TelemetrySnapshot,
   TelemetryUpdateEvent,
 } from "../api/types";
-import { parseStatus, parseWebSocketEvent } from "../api/validation";
+import {
+  parseSessionDetail,
+  parseSessionReplay,
+  parseSessions,
+  parseSource,
+  parseStatus,
+  parseWebSocketEvent,
+} from "../api/validation";
+import { formatSessionDuration, sessionDisplayName } from "../sessions/format";
 import {
   formatRawValue,
   metersPerSecondToKilometersPerHour,
@@ -213,6 +221,46 @@ describe("telemetry reducer", () => {
     expect(failed.serviceError).toBe("gateway stopped");
   });
 
+  it("distinguishes replay source and resets old telemetry on its new snapshot", () => {
+    const completed = telemetryReducer(
+      telemetryReducer(INITIAL_TELEMETRY_STATE, {
+        type: "initial_snapshot",
+        snapshot: snapshot(),
+      }),
+      {
+        type: "source",
+        source: {
+          mode: "replay",
+          session_id: "12345678-1234-5678-9234-567812345678",
+          session_name: "CITY baseline",
+          recording: false,
+          recorded_frame_count: 5,
+        },
+      },
+    );
+    const reset = telemetryReducer(completed, {
+      type: "initial_snapshot",
+      snapshot: {
+        observation_timestamp_microseconds: null,
+        last_frame_sequence: null,
+        signals: [],
+        statistics: {
+          total_frames: 0,
+          total_signal_updates: 0,
+          latest_timestamp_microseconds: null,
+          last_frame_sequence: null,
+          frames_by_message: [],
+        },
+      },
+    });
+
+    expect(reset.source.mode).toBe("replay");
+    expect(reset.source.session_name).toBe("CITY baseline");
+    expect(reset.samples).toEqual({});
+    expect(reset.histories).toEqual({});
+    expect(reset.lastFrameSequence).toBeNull();
+  });
+
   it("samples presentation history on simulation time and keeps it bounded", () => {
     let state = INITIAL_TELEMETRY_STATE;
     for (let sequence = 1; sequence <= CHART_HISTORY_CAPACITY + 10; sequence += 1) {
@@ -256,5 +304,53 @@ describe("boundary validation and display transforms", () => {
     expect(normalizedToPercent(0.42)).toBe(42);
     expect(formatRawValue(undefined)).toBe("—");
     expect(signalKeyId(definition.key)).toBe("DmeFastEngine\u001fEngineSpeedRpm");
+  });
+
+  it("runtime-validates session and source API contracts", () => {
+    const summary = {
+      session_id: "12345678-1234-5678-9234-567812345678",
+      name: null,
+      created_at_utc: "2026-09-02T12:00:00Z",
+      scenario: "city",
+      status: "complete",
+      frame_count: 1565,
+      duration_microseconds: 6_000_000,
+      dbc_compatible: true,
+    } as const;
+    const detail = {
+      ...summary,
+      format_name: "tuneros.raw_can_session",
+      format_version: 1,
+      vehicle_profile_id: "bmw-e90-335i-n54-2010-manual",
+      can_network: "TunerOS synthetic Classic CAN",
+      dbc_name: "tuneros_simulation.dbc",
+      dbc_sha256: "a".repeat(64),
+      frames_sha256: "b".repeat(64),
+      first_timestamp_microseconds: 0,
+      last_timestamp_microseconds: 6_000_000,
+    };
+
+    expect(parseSessions([summary])).toEqual([summary]);
+    expect(parseSessionDetail(detail)).toEqual(detail);
+    expect(
+      parseSource({
+        mode: "replay",
+        session_id: summary.session_id,
+        session_name: null,
+        recording: false,
+        recorded_frame_count: 0,
+      }).mode,
+    ).toBe("replay");
+    expect(
+      parseSessionReplay({
+        session_id: summary.session_id,
+        session_name: null,
+        source_mode: "replay",
+        service_state: "running",
+      }).service_state,
+    ).toBe("running");
+    expect(() => parseSessions([{ ...summary, frame_count: "many" }])).toThrow(/session list/);
+    expect(formatSessionDuration(summary.duration_microseconds)).toBe("6.000 s");
+    expect(sessionDisplayName(summary)).toBe("Session 12345678");
   });
 });

@@ -17,7 +17,7 @@ export function NoticeStrip() {
   let message = "The dashboard will populate when the local telemetry service publishes signals.";
   if (telemetry.serviceState === "completed") {
     tone = "complete";
-    title = "Simulation complete";
+    title = telemetry.source.mode === "replay" ? "Replay complete" : "Simulation complete";
     message = "Final values and chart history are retained for inspection.";
   } else if (telemetry.serviceState === "failed") {
     tone = "error";

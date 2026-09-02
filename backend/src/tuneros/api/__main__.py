@@ -1,20 +1,24 @@
 """Run the local TunerOS telemetry API."""
 
 import argparse
+import os
+from pathlib import Path
 
 import uvicorn
 
 from tuneros.api import DEFAULT_API_HOST, DEFAULT_API_PORT, create_app
 from tuneros.can import DEFAULT_GATEWAY_HOST, DEFAULT_GATEWAY_PORT
+from tuneros.session import DEFAULT_SESSION_ROOT, SessionCatalog, SessionRecorder
 from tuneros.telemetry import (
     DEFAULT_HISTORY_CAPACITY,
+    DEFAULT_REPLAY_SUBSCRIBER_QUEUE_CAPACITY,
     DEFAULT_SUBSCRIBER_QUEUE_CAPACITY,
     TelemetryServiceConfig,
 )
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Serve live decoded TunerOS telemetry")
+    parser = argparse.ArgumentParser(description="Serve live or replayed TunerOS telemetry")
     parser.add_argument("--host", default=DEFAULT_API_HOST)
     parser.add_argument("--port", type=int, default=DEFAULT_API_PORT)
     parser.add_argument("--gateway-host", default=DEFAULT_GATEWAY_HOST)
@@ -25,14 +29,49 @@ def main() -> None:
         type=int,
         default=DEFAULT_SUBSCRIBER_QUEUE_CAPACITY,
     )
+    parser.add_argument(
+        "--replay-subscriber-queue-capacity",
+        type=int,
+        default=DEFAULT_REPLAY_SUBSCRIBER_QUEUE_CAPACITY,
+    )
+    parser.add_argument(
+        "--session-root",
+        type=Path,
+        default=Path(os.environ.get("TUNEROS_SESSION_ROOT", DEFAULT_SESSION_ROOT)),
+    )
+    source = parser.add_mutually_exclusive_group()
+    source.add_argument("--record-session", action="store_true")
+    source.add_argument("--replay-session", metavar="SESSION_UUID")
+    parser.add_argument("--session-name")
+    parser.add_argument("--scenario", help="Optional recording metadata; not inferred from CAN")
     arguments = parser.parse_args()
     config = TelemetryServiceConfig(
         gateway_host=arguments.gateway_host,
         gateway_port=arguments.gateway_port,
         history_capacity=arguments.history_capacity,
         subscriber_queue_capacity=arguments.subscriber_queue_capacity,
+        replay_subscriber_queue_capacity=arguments.replay_subscriber_queue_capacity,
     )
-    uvicorn.run(create_app(config=config), host=arguments.host, port=arguments.port)
+    catalog = SessionCatalog(arguments.session_root)
+    recorder = (
+        SessionRecorder(
+            arguments.session_root,
+            name=arguments.session_name,
+            scenario=arguments.scenario,
+        )
+        if arguments.record_session
+        else None
+    )
+    from tuneros.telemetry import TelemetryService
+
+    service = TelemetryService(config, recorder=recorder)
+    app = create_app(
+        service,
+        autostart=arguments.replay_session is None,
+        session_catalog=catalog,
+        initial_replay_session_id=arguments.replay_session,
+    )
+    uvicorn.run(app, host=arguments.host, port=arguments.port)
 
 
 if __name__ == "__main__":

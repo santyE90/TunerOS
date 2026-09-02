@@ -11,7 +11,12 @@ import {
   useRef,
 } from "react";
 
-import { fetchSignalCatalog, fetchTelemetryStatus } from "../../lib/api/client";
+import {
+  fetchSignalCatalog,
+  fetchTelemetrySource,
+  fetchTelemetryStatus,
+  startSessionReplay,
+} from "../../lib/api/client";
 import { TUNEROS_WS_URL } from "../../lib/api/config";
 import type { TelemetryUpdateEvent } from "../../lib/api/types";
 import { parseWebSocketEvent } from "../../lib/api/validation";
@@ -24,9 +29,14 @@ import {
 const RECONNECT_DELAYS_MILLISECONDS = [500, 1_000, 2_000, 4_000, 5_000] as const;
 
 const TelemetryContext = createContext<TelemetryClientState | null>(null);
+interface TelemetryActions {
+  replaySession: (sessionId: string) => Promise<void>;
+}
+const TelemetryActionsContext = createContext<TelemetryActions | null>(null);
 
 export function TelemetryProvider({ children }: Readonly<{ children: ReactNode }>) {
   const [state, dispatch] = useReducer(telemetryReducer, INITIAL_TELEMETRY_STATE);
+  const [connectionGeneration, reconnect] = useReducer((generation: number) => generation + 1, 0);
   const pendingUpdates = useRef<TelemetryUpdateEvent[]>([]);
   const animationFrame = useRef<number | null>(null);
 
@@ -56,11 +66,12 @@ export function TelemetryProvider({ children }: Readonly<{ children: ReactNode }
 
   useEffect(() => {
     let active = true;
-    Promise.all([fetchTelemetryStatus(), fetchSignalCatalog()])
-      .then(([status, catalog]) => {
+    Promise.all([fetchTelemetryStatus(), fetchSignalCatalog(), fetchTelemetrySource()])
+      .then(([status, catalog, source]) => {
         if (!active) return;
         dispatch({ type: "status", status });
         dispatch({ type: "catalog", catalog });
+        dispatch({ type: "source", source });
       })
       .catch((error: unknown) => {
         if (!active) return;
@@ -145,10 +156,42 @@ export function TelemetryProvider({ children }: Readonly<{ children: ReactNode }
       if (socket !== null) socket.close();
       flushUpdates();
     };
-  }, [flushUpdates, queueUpdate]);
+  }, [connectionGeneration, flushUpdates, queueUpdate]);
+
+  const replaySession = useCallback(async (sessionId: string) => {
+    try {
+      const response = await startSessionReplay(sessionId);
+      dispatch({
+        type: "source",
+        source: {
+          mode: "replay",
+          session_id: response.session_id,
+          session_name: response.session_name,
+          recording: false,
+          recorded_frame_count: 0,
+        },
+      });
+      reconnect();
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Session replay could not start";
+      dispatch({ type: "client_error", error: message });
+      throw error;
+    }
+  }, []);
 
   const value = useMemo(() => state, [state]);
-  return <TelemetryContext.Provider value={value}>{children}</TelemetryContext.Provider>;
+  const actions = useMemo(() => ({ replaySession }), [replaySession]);
+  return (
+    <TelemetryActionsContext.Provider value={actions}>
+      <TelemetryContext.Provider value={value}>{children}</TelemetryContext.Provider>
+    </TelemetryActionsContext.Provider>
+  );
+}
+
+export function useTelemetryActions(): TelemetryActions {
+  const value = useContext(TelemetryActionsContext);
+  if (value === null) throw new Error("useTelemetryActions must be used inside TelemetryProvider");
+  return value;
 }
 
 export function useTelemetry(): TelemetryClientState {

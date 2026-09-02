@@ -6,6 +6,7 @@ import type {
   TelemetrySnapshot,
   TelemetryStatistics,
   TelemetryStatus,
+  TelemetrySource,
   TelemetryUpdateEvent,
 } from "../api/types";
 import { signalKeyId } from "./signals";
@@ -33,6 +34,7 @@ export interface TelemetryClientState {
   lastFrameSequence: number | null;
   statistics: TelemetryStatistics;
   initialized: boolean;
+  source: TelemetrySource;
 }
 
 const EMPTY_STATISTICS: TelemetryStatistics = {
@@ -56,12 +58,20 @@ export const INITIAL_TELEMETRY_STATE: TelemetryClientState = {
   lastFrameSequence: null,
   statistics: EMPTY_STATISTICS,
   initialized: false,
+  source: {
+    mode: "live",
+    session_id: null,
+    session_name: null,
+    recording: false,
+    recorded_frame_count: 0,
+  },
 };
 
 export type TelemetryAction =
   | { type: "connection"; state: FrontendConnectionState; error?: string | null }
   | { type: "catalog"; catalog: SignalDefinition[] }
   | { type: "status"; status: TelemetryStatus }
+  | { type: "source"; source: TelemetrySource }
   | { type: "initial_snapshot"; snapshot: TelemetrySnapshot }
   | { type: "updates"; updates: TelemetryUpdateEvent[] }
   | { type: "service_state"; state: TelemetryServiceState; error: string | null }
@@ -174,6 +184,8 @@ export function telemetryReducer(
         serviceState: action.status.service_state,
         serviceError: action.status.last_error,
       };
+    case "source":
+      return { ...state, source: action.source };
     case "initial_snapshot":
       return {
         ...state,
@@ -192,6 +204,10 @@ export function telemetryReducer(
         ...state,
         serviceState: action.state,
         serviceError: action.error,
+        source:
+          action.state === "completed" || action.state === "failed"
+            ? { ...state.source, recording: false }
+            : state.source,
       };
     case "client_error":
       return { ...state, clientError: action.error };

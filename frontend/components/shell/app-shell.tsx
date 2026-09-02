@@ -9,16 +9,21 @@ import { StatusBar } from "../telemetry/status-bar";
 const navigation = [
   { label: "Overview", href: "/", enabled: true, marker: "OV" },
   { label: "Telemetry", href: "/telemetry", enabled: true, marker: "TM" },
+  { label: "Sessions", href: "/sessions", enabled: true, marker: "SS" },
   { label: "CAN Explorer", enabled: false, marker: "CN" },
   { label: "Diagnostics", enabled: false, marker: "DX" },
-  { label: "Sessions", enabled: false, marker: "SS" },
   { label: "Calibration", enabled: false, marker: "CL" },
   { label: "System", enabled: false, marker: "SY" },
 ] as const;
 
 export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
   const pathname = usePathname();
-  const pageTitle = pathname === "/telemetry" ? "Signal telemetry" : "Engineering overview";
+  const pageTitle =
+    pathname === "/telemetry"
+      ? "Signal telemetry"
+      : pathname === "/sessions"
+        ? "Recorded sessions"
+        : "Engineering overview";
 
   return (
     <div className="app-shell">

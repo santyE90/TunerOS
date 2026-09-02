@@ -1,9 +1,11 @@
-# Live telemetry API
+# Telemetry and session API
 
 ## Scope and startup
 
-Phase 4B exposes the in-memory decoded telemetry domain to local REST and WebSocket consumers. It
-does not control the simulator, decode CAN, persist data, run diagnostics, or authenticate users.
+Phase 4B exposes the in-memory decoded telemetry domain to local REST and WebSocket consumers.
+Phase 5B adds filesystem session catalog and replay coordination while preserving those telemetry
+contracts. The API does not control the simulator, decode CAN itself, run diagnostics, use
+PostgreSQL, or authenticate users.
 The API binds to `127.0.0.1:8000` by default; the raw gateway remains `127.0.0.1:45800`.
 
 Windows development workflow from the repository root:
@@ -27,15 +29,21 @@ Useful URLs:
 - Status: `http://127.0.0.1:8000/api/v1/status`
 - Catalog: `http://127.0.0.1:8000/api/v1/catalog`
 - Snapshot: `http://127.0.0.1:8000/api/v1/telemetry`
+- Source: `http://127.0.0.1:8000/api/v1/source`
+- Sessions: `http://127.0.0.1:8000/api/v1/sessions`
 
 CLI options configure API host/port, gateway host/port, history capacity, and subscriber queue
-capacity. The C++ simulation remains unpaced and may reach `COMPLETED` almost immediately.
+capacity. `--record-session` enables raw-first recording; `--session-name` and `--scenario` add
+optional metadata. `--replay-session UUID` is mutually exclusive with recording and starts from the
+configured session root without connecting to C++. `--session-root` or `TUNEROS_SESSION_ROOT`
+selects that root. The C++ simulation and replay remain unpaced and may reach `COMPLETED` almost
+immediately after a subscriber attaches.
 
 ## Service states and lifespan
 
-`create_app()` performs no network I/O at import. Its lifespan starts `TelemetryService` unless
-autostart is disabled or a test-controlled service is injected, and stops/joins the worker on
-shutdown.
+`create_app()` performs no network I/O at import. Its lifespan starts a live `TelemetryService`, or
+the selected initial replay, unless autostart is disabled or a test-controlled service is injected.
+It stops and joins the worker on shutdown.
 
 States are:
 
@@ -47,6 +55,10 @@ States are:
 
 Phase 4B performs no retry or automatic scenario restart.
 
+The separate source contract reports `live` or `replay`, replay session identity, whether an
+optional live recorder is active, and its current raw-frame count. Source mode does not replace DBC
+signal provenance. One service accepts only one connecting/running live or replay source.
+
 ## REST routes
 
 All routes use integer simulation timestamps in microseconds and preserve literal DBC units and
@@ -55,6 +67,10 @@ transmitter names.
 | Route | Meaning |
 | --- | --- |
 | `GET /api/v1/status` | Service state, connection flag, last error, latest timestamp, frame/update totals |
+| `GET /api/v1/source` | Live/replay mode, replay session identity, and live recording state |
+| `GET /api/v1/sessions` | Validated complete session summaries and installed-DBC compatibility |
+| `GET /api/v1/sessions/{session_id}` | Validated complete manifest detail; accepts a canonical UUID only |
+| `POST /api/v1/sessions/{session_id}/replay` | Reset telemetry and stage compatible raw replay; returns 202 |
 | `GET /api/v1/catalog` | All DBC-derived `SignalDefinition` metadata |
 | `GET /api/v1/telemetry` | Coherent latest snapshot with per-signal timestamps and freshness |
 | `GET /api/v1/statistics` | Totals and explicit JSON-safe counts by CAN message |
@@ -141,7 +157,8 @@ frame's decoded signals:
 
 Signals from one CAN frame remain together. Frame sequence preserves ingestion and same-timestamp bus
 order. No raw payload bytes are sent. Multiple clients receive independent ordered streams from
-their connection point.
+their connection point. Replay uses this same contract: it first supplies an authoritative empty
+snapshot from the freshly reset engine, then publishes frame-zero onward.
 
 Lifecycle changes use:
 
@@ -150,9 +167,10 @@ Lifecycle changes use:
 ```
 
 Completion closes normally with code 1000 after the event. Failure sends `state: "failed"` with safe
-error text and closes with 1011. Each client has a bounded queue of 256 frame events by default. A
-queue overflow removes only that slow client and closes it with code 1013 and reason `slow_client`;
-events are not silently discarded.
+error text and closes with 1011. Each live client has a bounded queue of 256 frame events by default.
+Unpaced replay uses a separately configurable bounded queue of 65,536 events by default. A queue
+overflow removes only that slow client and closes it with code 1013 and reason `slow_client`; events
+are not silently discarded and ingestion does not block.
 
 ## Local security and deferred functionality
 
@@ -160,6 +178,7 @@ Development CORS allows only `http://localhost:3000` and `http://127.0.0.1:3000`
 loopback-only, but Phase 4B provides no authentication, authorization, or TLS and must not be treated
 as a production deployment configuration.
 
-Persistence, session recording/replay, diagnostics, tuning, raw-CAN streaming, simulator control,
-and physical CAN remain deferred. Phase 5A consumes this API from the browser without changing its
-contracts; see [Frontend dashboard](FRONTEND.md).
+Diagnostics, tuning, raw-CAN browser streaming, simulator control, authentication, session database
+indexing, advanced playback controls, and physical CAN remain deferred. Phase 5B keeps raw payloads
+inside the session layer and exposes metadata rather than filesystem paths. See
+[Frontend dashboard](FRONTEND.md) and [Session recording and replay](SESSIONS.md).

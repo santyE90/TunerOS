@@ -1,5 +1,6 @@
 """DBC-backed decoder for the synthetic TunerOS CAN network."""
 
+from hashlib import sha256
 from importlib.resources import as_file, files
 
 import canmatrix
@@ -9,6 +10,13 @@ from tuneros.can.metadata import CanDatabaseMetadata, CanMessageMetadata, CanSig
 from tuneros.can.models import DecodedCanFrame, RawCanFrame, SignalValue
 
 _DBC_RESOURCE = files("tuneros.can").joinpath("dbc", "tuneros_simulation.dbc")
+AUTHORITATIVE_DBC_NAME = "tuneros_simulation.dbc"
+
+
+def authoritative_dbc_sha256() -> str:
+    """Return the identity hash of the packaged authoritative synthetic DBC."""
+
+    return sha256(_DBC_RESOURCE.read_bytes()).hexdigest()
 
 
 class CanDecodeError(ValueError):

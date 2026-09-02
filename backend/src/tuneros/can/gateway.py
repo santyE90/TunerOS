@@ -6,16 +6,20 @@ from collections.abc import Iterator
 from types import TracebackType
 
 from tuneros.can.models import RawCanFrame
+from tuneros.can.record_codec import (
+    RAW_CAN_RECORD_SIZE,
+    RawCanRecordError,
+    decode_raw_can_record,
+)
 
 GATEWAY_MAGIC = b"TNCR"
 GATEWAY_PROTOCOL_VERSION = 1
 GATEWAY_HEADER_SIZE = 8
-GATEWAY_RECORD_SIZE = 19
+GATEWAY_RECORD_SIZE = RAW_CAN_RECORD_SIZE
 DEFAULT_GATEWAY_HOST = "127.0.0.1"
 DEFAULT_GATEWAY_PORT = 45_800
 
 _HEADER = struct.Struct("!4sB3s")
-_RECORD = struct.Struct("!QHB8s")
 
 
 class GatewayError(Exception):
@@ -53,14 +57,10 @@ def decode_gateway_record(data: bytes) -> RawCanFrame:
         raise GatewayProtocolError(
             f"gateway record requires {GATEWAY_RECORD_SIZE} bytes, got {len(data)}"
         )
-    timestamp, arbitration_id, dlc, padded_payload = _RECORD.unpack(data)
-    if arbitration_id > 0x7FF:
-        raise GatewayProtocolError(
-            f"received invalid standard CAN arbitration ID 0x{arbitration_id:X}"
-        )
-    if dlc > 8:
-        raise GatewayProtocolError(f"received invalid Classic CAN DLC {dlc}")
-    return RawCanFrame(arbitration_id, padded_payload[:dlc], timestamp)
+    try:
+        return decode_raw_can_record(data)
+    except RawCanRecordError as error:
+        raise GatewayProtocolError(f"received {error}") from error
 
 
 class RawCanGatewayClient:

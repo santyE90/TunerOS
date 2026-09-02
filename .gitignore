@@ -265,6 +265,9 @@ Desktop.ini
 coverage/
 .nyc_output/
 
+# Generated portable TunerOS session artifacts
+/data/sessions/
+
 # Miscellaneous logs
 logs/
 *.log

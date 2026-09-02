@@ -4,6 +4,7 @@ from collections.abc import Iterator
 
 import pytest
 from tuneros.can import DecodedCanFrame, GatewayConnectionError, RawCanFrame
+from tuneros.session import SessionReader, SessionRecorder, SessionStatus
 from tuneros.telemetry import (
     SubscriberClosed,
     TelemetryBroadcaster,
@@ -11,6 +12,7 @@ from tuneros.telemetry import (
     TelemetryServiceConfig,
     TelemetryServiceState,
     TelemetryServiceStateUpdate,
+    TelemetrySourceMode,
     TelemetryUpdate,
 )
 
@@ -80,6 +82,7 @@ def _motion(timestamp: int, speed: float = 0.0) -> DecodedCanFrame:
         ({"gateway_port": True}, TypeError),
         ({"history_capacity": 0}, ValueError),
         ({"subscriber_queue_capacity": -1}, ValueError),
+        ({"replay_subscriber_queue_capacity": 0}, ValueError),
         ({"gateway_connect_timeout_seconds": 0}, ValueError),
         ({"gateway_connect_timeout_seconds": float("inf")}, ValueError),
     ],
@@ -125,6 +128,76 @@ def test_gateway_failure_is_captured_without_escaping_worker() -> None:
     assert status.last_error == "test gateway unavailable"
     assert status.statistics.total_frames == 0
     service.stop()
+
+
+def test_live_recording_taps_raw_frame_before_decode_and_finalizes(tmp_path) -> None:
+    raw = RawCanFrame(0x500, bytes.fromhex("b80b0f2e01"), 0)
+    gateway = FakeGateway((raw,))
+    recorder = SessionRecorder(tmp_path, name="recorded")
+    service = TelemetryService(gateway_connector=lambda **_: gateway, recorder=recorder)
+
+    service.start()
+    assert service.wait_for_state(TelemetryServiceState.COMPLETED)
+
+    assert recorder.manifest.status is SessionStatus.COMPLETE
+    assert list(SessionReader(recorder.artifact_path).frames()) == [raw]
+    assert service.statistics().total_frames == 1
+    assert service.source_status().mode is TelemetrySourceMode.LIVE
+    assert not service.source_status().recording
+    service.stop()
+
+
+def test_failed_live_recording_stays_incomplete(tmp_path) -> None:
+    raw = RawCanFrame(0x500, bytes.fromhex("b80b0f2e01"), 0)
+    gateway = FakeGateway((raw,), frame_error=GatewayConnectionError("stream failed"))
+    recorder = SessionRecorder(tmp_path)
+    service = TelemetryService(gateway_connector=lambda **_: gateway, recorder=recorder)
+
+    service.start()
+    assert service.wait_for_state(TelemetryServiceState.FAILED)
+
+    assert recorder.manifest.status is SessionStatus.INCOMPLETE
+    assert recorder.manifest.frame_count == 1
+    assert not tuple(tmp_path.glob("*.tuneros"))
+    service.stop()
+
+
+def test_recording_disabled_writes_nothing(tmp_path) -> None:
+    gateway = FakeGateway((RawCanFrame(0x500, bytes.fromhex("b80b0f2e01"), 0),))
+    service = TelemetryService(gateway_connector=lambda **_: gateway)
+    service.start()
+    assert service.wait_for_state(TelemetryServiceState.COMPLETED)
+    assert not tuple(tmp_path.iterdir())
+    service.stop()
+
+
+def test_replay_resets_engine_waits_for_subscriber_and_preserves_source() -> None:
+    async def exercise() -> None:
+        service = TelemetryService()
+        service.ingest_decoded(_fast(90_000, 900.0))
+        raw = RawCanFrame(0x500, bytes.fromhex("b80b0f2e01"), 0)
+        service.start_replay(
+            lambda: iter((raw,)),
+            session_id="12345678-1234-5678-9234-567812345678",
+            session_name="Replay test",
+            wait_for_subscriber=True,
+        )
+        assert service.statistics().total_frames == 0
+        assert service.state is TelemetryServiceState.RUNNING
+
+        subscription, initial, _ = service.subscribe(asyncio.get_running_loop())
+        assert initial.samples == {}
+        update = await subscription.receive()
+        completed = await subscription.receive()
+        assert isinstance(update, TelemetryUpdate)
+        assert update.frame_sequence == 0
+        assert completed == TelemetryServiceStateUpdate(TelemetryServiceState.COMPLETED)
+        assert service.source_status().mode is TelemetrySourceMode.REPLAY
+        assert service.source_status().session_name == "Replay test"
+        subscription.close()
+        service.stop()
+
+    asyncio.run(exercise())
 
 
 def test_stop_closes_gateway_and_joins_blocking_worker() -> None:

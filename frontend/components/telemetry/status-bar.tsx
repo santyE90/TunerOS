@@ -22,6 +22,20 @@ export function StatusBar() {
         <strong>{telemetry.connectionState}</strong>
       </div>
       <div className="status-item">
+        <span
+          className={`status-dot ${telemetry.source.recording ? "complete" : "positive"}`}
+          aria-hidden="true"
+        />
+        <span>Source</span>
+        <strong>
+          {telemetry.source.recording
+            ? "recording"
+            : telemetry.source.mode === "replay"
+              ? `replay${telemetry.source.session_name ? ` · ${telemetry.source.session_name}` : ""}`
+              : "live"}
+        </strong>
+      </div>
+      <div className="status-item">
         <span className={`status-dot ${stateTone(telemetry.serviceState)}`} aria-hidden="true" />
         <span>Service</span>
         <strong>{telemetry.serviceState}</strong>

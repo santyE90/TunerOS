@@ -8,6 +8,7 @@ VehicleProfile + InitialConditions + Scenario + Environment + SimulationClock
                          -> simulated ECUs (controller/ECU state)
                          -> binary CAN frames
                          -> CAN transport
+                         +-> raw-CAN session artifact
                          -> DBC decoder
                          -> telemetry core
                          -> telemetry service
@@ -41,15 +42,16 @@ access, not a production telemetry path.
 
 - **C++20:** authoritative deterministic vehicle-side contracts and vehicle state evolution,
   application-level Classic CAN primitives, and simulated ECU publication.
-- **Python 3.12+:** synchronous live raw-CAN input, authoritative DBC decoding, immutable CAN
-  metadata, deterministic telemetry aggregation, and a FastAPI REST/WebSocket application boundary.
-  Future diagnostics and persistence begin downstream. Python does not define or access C++
-  `VehicleState`.
+- **Python 3.12+:** synchronous live raw-CAN input, portable raw session recording/replay,
+  authoritative DBC decoding, immutable CAN metadata, deterministic telemetry aggregation, and a
+  FastAPI REST/WebSocket application boundary. Python does not define or access C++ `VehicleState`.
 - **TypeScript/Next.js:** observation-only operator visualization. Phase 5A owns network contract
-  validation, ordered live client state, presentation history, and engineering views; it does not
-  decode CAN or access vehicle state.
-- **PostgreSQL:** future durable configuration, sessions, decoded telemetry, diagnostics, and
-  analysis; currently local infrastructure only.
+  validation, ordered client state, presentation history, and engineering views; Phase 5B adds
+  session metadata/replay controls through the same provider. It does not decode CAN or access
+  vehicle state.
+- **PostgreSQL:** future durable configuration, session indexing, decoded analytics, diagnostics,
+  and analysis; currently local infrastructure only. Raw session artifacts intentionally remain
+  filesystem-based in Phase 5B.
 - **Docker Compose:** reproducible local infrastructure, currently PostgreSQL only.
 
 Language-neutral artifacts belong in `shared/` only when real cross-language consumers exist. The
@@ -120,8 +122,27 @@ provenance. `TelemetryEngine` synchronously preserves frame arrival order, rejec
 simulation timestamps, updates all signals from one frame atomically, and stores only latest samples,
 bounded per-signal histories, and small statistics.
 
-Raw CAN remains available before decode for a future CAN explorer or recorder. Telemetry never
-retains raw bytes and never accesses `VehicleState`. See [Telemetry contracts](TELEMETRY.md).
+Raw CAN remains available before decode for the Phase 5B session recorder and a future CAN explorer.
+Telemetry never retains raw bytes and never accesses `VehicleState`. See
+[Telemetry contracts](TELEMETRY.md).
+
+## Raw session boundary
+
+Phase 5B taps the exact live object before decode:
+
+```text
+                        +-> SessionRecorder -> <uuid>.tuneros/{manifest.json, frames.bin}
+RawCanGatewayClient ----+
+                        +-> TunerOsDbcDecoder -> TelemetryEngine -> service/API/UI
+
+session artifact -> SessionReader -> RawCanFrame -> TunerOsDbcDecoder
+                 -> fresh TelemetryEngine -> same service/API/UI
+```
+
+Raw CAN is the canonical recording. The recorder does not reconstruct frames from decoded signals,
+sort, deduplicate, normalize timestamps, or retain the run in memory. Replay validates file/DBC
+hashes and regenerates all decoded state. Only one live or replay source can own a service engine at
+once. See [Session recording and replay](SESSIONS.md).
 
 ## Telemetry service boundary
 
@@ -149,3 +170,8 @@ numbers, and reports forward gaps. Its bounded, deterministically sampled chart 
 presentation state, not recording or a new telemetry authority. Canonical units and full provenance
 remain unchanged; km/h and percent appear only as display conversions. See
 [Frontend dashboard](FRONTEND.md).
+
+Phase 5B adds a Sessions view using the focused REST client and the existing provider. Replay resets
+the provider with an authoritative empty WebSocket snapshot before frame-zero deltas, so prior live
+state cannot mix with replay. The browser neither reads raw frame bytes nor opens a second replay
+stream.

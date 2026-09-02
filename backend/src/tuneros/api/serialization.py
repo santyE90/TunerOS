@@ -4,6 +4,8 @@ from tuneros.api.models import (
     InitialSnapshotEventResponse,
     MessageFrameCountResponse,
     ServiceStateEventResponse,
+    SessionDetailResponse,
+    SessionSummaryResponse,
     SignalDefinitionResponse,
     SignalKeyResponse,
     SignalSampleResponse,
@@ -11,6 +13,7 @@ from tuneros.api.models import (
     TelemetryStatisticsResponse,
     TelemetryUpdateEventResponse,
 )
+from tuneros.session import SessionManifest
 from tuneros.telemetry import (
     SignalDefinition,
     SignalFreshness,
@@ -124,3 +127,37 @@ def serialize_update(update: TelemetryUpdate) -> TelemetryUpdateEventResponse:
 
 def serialize_service_state(update: TelemetryServiceStateUpdate) -> ServiceStateEventResponse:
     return ServiceStateEventResponse(state=update.state, error=update.error)
+
+
+def serialize_session_summary(
+    manifest: SessionManifest, *, dbc_compatible: bool
+) -> SessionSummaryResponse:
+    return SessionSummaryResponse(
+        session_id=manifest.session_id,
+        name=manifest.name,
+        created_at_utc=manifest.created_at_utc,
+        scenario=manifest.scenario,
+        status=manifest.status,
+        frame_count=manifest.frame_count,
+        duration_microseconds=manifest.duration_microseconds,
+        dbc_compatible=dbc_compatible,
+    )
+
+
+def serialize_session_detail(
+    manifest: SessionManifest, *, dbc_compatible: bool
+) -> SessionDetailResponse:
+    if manifest.frames_sha256 is None:  # complete manifests guarantee this
+        raise AssertionError("complete session must have a frame-file hash")
+    return SessionDetailResponse(
+        **serialize_session_summary(manifest, dbc_compatible=dbc_compatible).model_dump(),
+        format_name=manifest.format_name,
+        format_version=manifest.format_version,
+        vehicle_profile_id=manifest.vehicle_profile_id,
+        can_network=manifest.can_network,
+        dbc_name=manifest.dbc_name,
+        dbc_sha256=manifest.dbc_sha256,
+        frames_sha256=manifest.frames_sha256,
+        first_timestamp_microseconds=manifest.first_timestamp_microseconds,
+        last_timestamp_microseconds=manifest.last_timestamp_microseconds,
+    )

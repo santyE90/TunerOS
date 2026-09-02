@@ -4,6 +4,7 @@
 
 Phase 4A turns decoded synthetic CAN observations into deterministic, queryable application-domain
 state. Phase 4B coordinates that unchanged domain core with the live gateway and an API boundary.
+Phase 5B supplies either live gateway frames or recorded raw frames to that same decode/engine path.
 The engine's only ingestion contract remains `DecodedCanFrame`:
 
 ```text
@@ -11,7 +12,8 @@ RawCanFrame -> TunerOsDbcDecoder -> DecodedCanFrame -> TelemetryEngine
 ```
 
 The engine never accepts C++ simulator types, `VehicleState`, raw CAN, sockets, or `canmatrix`
-objects. Raw frames remain independently available upstream for a future CAN explorer or recorder.
+objects. Raw frames remain independently available upstream for the implemented session recorder
+and a future CAN explorer.
 The domain engine contains no API, WebSocket, persistence, diagnostics, derived analytics, or
 presentation conversion.
 
@@ -88,13 +90,20 @@ meaning.
 
 `TelemetryService` composes `RawCanGatewayClient`, `TunerOsDbcDecoder`, and `TelemetryEngine` without
 merging their responsibilities. Its configuration contains gateway host/port, history capacity,
-subscriber queue capacity, and gateway connection timeout. Defaults are `127.0.0.1:45800`, 256
-history samples, 256 queued events per WebSocket client, and a 10-second connection timeout.
+live and replay subscriber queue capacities, and gateway connection timeout. Defaults are
+`127.0.0.1:45800`, 256 history samples, 256 queued live events, 65,536 queued replay events, and a
+10-second connection timeout.
 
-The blocking gateway reader runs on one dedicated daemon thread. A re-entrant service lock protects
+The blocking gateway reader or unpaced replay iterator runs on one dedicated daemon thread. A
+re-entrant service lock protects
 engine ingestion, lifecycle state, and coherent snapshot/history/statistics reads. Broadcasting
 occurs only after a whole decoded frame has been accepted. The engine remains intentionally unaware
 of threads and async consumers.
+
+For live recording, the service sends the actual `RawCanFrame` to `SessionRecorder` before DBC
+decode. For replay, `SessionReader` lazily yields `RawCanFrame` into the existing decoder. The
+service reports `LIVE` or `REPLAY`, prevents concurrent sources, resets the engine before replay,
+and retains DBC transmitter provenance unchanged.
 
 Lifecycle states are `STOPPED`, `CONNECTING`, `RUNNING`, `COMPLETED`, and `FAILED`. Record-boundary
 EOF is normal completion: final telemetry remains queryable and connected WebSockets receive a
@@ -102,10 +111,12 @@ completion event before closing normally. Connection, protocol, decode, or inges
 `FAILED`, preserve safe error text, notify clients, and do not crash the API process. There is no
 automatic retry or restart in Phase 4B.
 
-Each WebSocket subscriber owns a bounded `asyncio.Queue`. Gateway-thread publications are scheduled
+Each WebSocket subscriber owns a bounded `asyncio.Queue`. Worker-thread publications are scheduled
 onto the subscriber's event loop in original frame-sequence order. If its queue fills, only that slow
 subscriber is removed, receives an internal `slow_client` closure signal, and closes with WebSocket
-code 1013. Updates are never silently dropped and one slow client cannot block ingestion.
+code 1013. Updates are never silently dropped and one slow client cannot block ingestion. The larger
+bounded replay default accommodates the current unpaced full CITY artifact without weakening the
+smaller live backpressure policy.
 
 The HTTP/WebSocket representation is defined separately in [API contracts](API.md). API adapters
 copy immutable domain values into explicit Pydantic schemas; domain models were not changed for JSON.
@@ -118,8 +129,8 @@ wall-clock rates and performance measurements.
 
 `reset()` clears latest samples, histories, frame sequence, timestamp, and statistics while retaining
 the immutable catalog. Reingesting an identical decoded-frame list produces exactly equal samples,
-histories, snapshots, sequences, and statistics. This establishes replay readiness without adding a
-session recording or replay feature.
+histories, snapshots, sequences, and statistics. Phase 5B uses this reset before each replay; the
+first WebSocket subscriber receives the resulting authoritative empty snapshot before replay starts.
 
 ## Errors and deferred work
 
@@ -128,7 +139,8 @@ session recording or replay feature.
 - `OutOfOrderTelemetryError`: a frame timestamp moves backward relative to accepted live input.
 - Duplicate and same-timestamp frames are not errors.
 
-Explicitly deferred are PostgreSQL telemetry storage, session recording/replay, diagnostics,
-thresholds, fault injection, derived horsepower/torque/boost/acceleration signals, aliases,
-authentication, and physical CAN. Phase 5A provides a live decoded-signal dashboard downstream of
-the existing API; it does not change this telemetry-domain contract.
+Explicitly deferred are PostgreSQL telemetry/session indexing, playback pacing and seek controls,
+diagnostics, thresholds, fault injection, derived horsepower/torque/boost/acceleration signals,
+aliases, authentication, and physical CAN. Phase 5B adds raw recording and deterministic replay
+around this core without changing its decoded-frame ingestion contract. See
+[Session recording and replay](SESSIONS.md).

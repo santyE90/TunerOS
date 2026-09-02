@@ -5,7 +5,8 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 from tuneros.can import SignalValue
-from tuneros.telemetry import SignalFreshness, TelemetryServiceState
+from tuneros.session import SessionStatus
+from tuneros.telemetry import SignalFreshness, TelemetryServiceState, TelemetrySourceMode
 
 
 class ApiModel(BaseModel):
@@ -70,6 +71,44 @@ class TelemetryStatusResponse(ApiModel):
     latest_timestamp_microseconds: int | None
     total_frames: int
     total_signal_updates: int
+
+
+class TelemetrySourceResponse(ApiModel):
+    mode: TelemetrySourceMode
+    session_id: str | None
+    session_name: str | None
+    recording: bool
+    recorded_frame_count: int
+
+
+class SessionSummaryResponse(ApiModel):
+    session_id: str
+    name: str | None
+    created_at_utc: str
+    scenario: str | None
+    status: SessionStatus
+    frame_count: int
+    duration_microseconds: int
+    dbc_compatible: bool
+
+
+class SessionDetailResponse(SessionSummaryResponse):
+    format_name: str
+    format_version: int
+    vehicle_profile_id: str
+    can_network: str
+    dbc_name: str
+    dbc_sha256: str
+    frames_sha256: str
+    first_timestamp_microseconds: int | None
+    last_timestamp_microseconds: int | None
+
+
+class SessionReplayResponse(ApiModel):
+    session_id: str
+    session_name: str | None
+    source_mode: Literal["replay"] = "replay"
+    service_state: Literal["running"] = "running"
 
 
 class SignalResponse(ApiModel):

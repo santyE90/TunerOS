@@ -6,6 +6,7 @@ export type TelemetryServiceState =
   | "running"
   | "completed"
   | "failed";
+export type TelemetrySourceMode = "live" | "replay";
 
 export interface SignalKey {
   message_name: string;
@@ -65,6 +66,44 @@ export interface TelemetryStatus {
   latest_timestamp_microseconds: number | null;
   total_frames: number;
   total_signal_updates: number;
+}
+
+export interface TelemetrySource {
+  mode: TelemetrySourceMode;
+  session_id: string | null;
+  session_name: string | null;
+  recording: boolean;
+  recorded_frame_count: number;
+}
+
+export interface SessionSummary {
+  session_id: string;
+  name: string | null;
+  created_at_utc: string;
+  scenario: string | null;
+  status: "complete";
+  frame_count: number;
+  duration_microseconds: number;
+  dbc_compatible: boolean;
+}
+
+export interface SessionDetail extends SessionSummary {
+  format_name: string;
+  format_version: number;
+  vehicle_profile_id: string;
+  can_network: string;
+  dbc_name: string;
+  dbc_sha256: string;
+  frames_sha256: string;
+  first_timestamp_microseconds: number | null;
+  last_timestamp_microseconds: number | null;
+}
+
+export interface SessionReplayResponse {
+  session_id: string;
+  session_name: string | null;
+  source_mode: "replay";
+  service_state: "running";
 }
 
 export interface SignalResponse {

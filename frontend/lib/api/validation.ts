@@ -2,6 +2,9 @@ import type {
   InitialSnapshotEvent,
   MessageFrameCount,
   ServiceStateEvent,
+  SessionDetail,
+  SessionReplayResponse,
+  SessionSummary,
   SignalDefinition,
   SignalFreshness,
   SignalHistoryResponse,
@@ -12,6 +15,7 @@ import type {
   TelemetrySnapshot,
   TelemetryStatistics,
   TelemetryStatus,
+  TelemetrySource,
   TelemetryUpdateEvent,
   TelemetryWebSocketEvent,
 } from "./types";
@@ -37,6 +41,40 @@ function isFreshness(value: unknown): value is SignalFreshness {
 function isServiceState(value: unknown): value is TelemetryServiceState {
   return ["stopped", "connecting", "running", "completed", "failed"].includes(
     String(value),
+  );
+}
+
+function isNullableString(value: unknown): value is string | null {
+  return value === null || typeof value === "string";
+}
+
+function isSessionSummary(value: unknown): value is SessionSummary {
+  return (
+    isRecord(value) &&
+    typeof value.session_id === "string" &&
+    isNullableString(value.name) &&
+    typeof value.created_at_utc === "string" &&
+    isNullableString(value.scenario) &&
+    value.status === "complete" &&
+    isInteger(value.frame_count) &&
+    isInteger(value.duration_microseconds) &&
+    typeof value.dbc_compatible === "boolean"
+  );
+}
+
+function isSessionDetail(value: unknown): value is SessionDetail {
+  return (
+    isRecord(value) &&
+    isSessionSummary(value) &&
+    typeof value.format_name === "string" &&
+    isInteger(value.format_version) &&
+    typeof value.vehicle_profile_id === "string" &&
+    typeof value.can_network === "string" &&
+    typeof value.dbc_name === "string" &&
+    typeof value.dbc_sha256 === "string" &&
+    typeof value.frames_sha256 === "string" &&
+    isNullableInteger(value.first_timestamp_microseconds) &&
+    isNullableInteger(value.last_timestamp_microseconds)
   );
 }
 
@@ -130,6 +168,58 @@ export function parseStatus(value: unknown): TelemetryStatus {
     latest_timestamp_microseconds: value.latest_timestamp_microseconds,
     total_frames: value.total_frames,
     total_signal_updates: value.total_signal_updates,
+  };
+}
+
+export function parseSource(value: unknown): TelemetrySource {
+  if (
+    !isRecord(value) ||
+    (value.mode !== "live" && value.mode !== "replay") ||
+    !isNullableString(value.session_id) ||
+    !isNullableString(value.session_name) ||
+    typeof value.recording !== "boolean" ||
+    !isInteger(value.recorded_frame_count)
+  ) {
+    throw new Error("Backend returned an invalid telemetry source response");
+  }
+  return {
+    mode: value.mode,
+    session_id: value.session_id,
+    session_name: value.session_name,
+    recording: value.recording,
+    recorded_frame_count: value.recorded_frame_count,
+  };
+}
+
+export function parseSessions(value: unknown): SessionSummary[] {
+  if (!Array.isArray(value) || !value.every(isSessionSummary)) {
+    throw new Error("Backend returned an invalid session list response");
+  }
+  return value;
+}
+
+export function parseSessionDetail(value: unknown): SessionDetail {
+  if (!isSessionDetail(value)) {
+    throw new Error("Backend returned an invalid session detail response");
+  }
+  return value;
+}
+
+export function parseSessionReplay(value: unknown): SessionReplayResponse {
+  if (
+    !isRecord(value) ||
+    typeof value.session_id !== "string" ||
+    !isNullableString(value.session_name) ||
+    value.source_mode !== "replay" ||
+    value.service_state !== "running"
+  ) {
+    throw new Error("Backend returned an invalid session replay response");
+  }
+  return {
+    session_id: value.session_id,
+    session_name: value.session_name,
+    source_mode: "replay",
+    service_state: "running",
   };
 }
 

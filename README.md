@@ -6,7 +6,7 @@ automotive telemetry system would use: ECUs, binary CAN frames, decoded signals,
 and a browser interface. The first reference vehicle is a 2010 BMW E90 335i with the N54
 engine.
 
-> **Current status:** Phase 0, Phases 1A–1C, Phases 2A–2C, Phase 3A, Phases 4A–4B, and Phase 5A are complete. C++ provides
+> **Current status:** Phase 0, Phases 1A–1C, Phases 2A–2C, Phase 3A, Phases 4A–4B, and Phases 5A–5B are complete. C++ provides
 > deterministic vehicle simulation, independent simulated DME and DSC publication, globally ordered
 > synthetic Classic CAN, and in-memory transport. A versioned binary TCP loopback gateway carries
 > the combined raw bus live into
@@ -15,8 +15,11 @@ engine.
 > immutable snapshots, statistics, and simulation-time freshness. A local FastAPI service exposes
 > that domain through REST and frame-atomic WebSocket deltas. The Next.js engineering dashboard
 > consumes those real contracts for live overview, charts, and catalog-driven signal inspection.
-> These definitions are not authentic BMW traffic. Persistence, recording/replay, diagnostics,
-> tuning, physical CAN, authentication, and simulator controls are not implemented.
+> Optional raw-CAN recording produces portable, hashed session artifacts that replay through the
+> same DBC, telemetry engine, API, and dashboard. The Sessions page lists and starts those replays.
+> These definitions are not authentic BMW traffic. Database indexing, advanced playback controls,
+> Raw CAN Explorer, diagnostics, tuning, physical CAN, authentication, and simulator controls are
+> not implemented.
 
 ## Architecture at a glance
 
@@ -25,6 +28,8 @@ The planned data path is:
 ```text
 Vehicle model -> simulated ECUs -> binary CAN frames -> transport -> DBC decoder
               -> TelemetryEngine -> TelemetryService -> REST/WebSocket -> Next.js dashboard
+                                   ^
+              raw session replay -+
 ```
 
 CAN is the required source-of-truth boundary for future frontend telemetry; the simulator will not
@@ -36,7 +41,7 @@ persistence boundary.
 ## Repository layout
 
 ```text
-backend/       Python gateway, DBC decoder, telemetry core, and local REST/WebSocket service
+backend/       Python gateway, raw sessions, DBC decoder, telemetry core, and local API
 can/           C++ Classic CAN, simulated DME/DSC publication, shared bus, and loopback gateway
 frontend/      Next.js live engineering dashboard and telemetry client
 shared/        Future language-neutral application contracts
@@ -147,6 +152,27 @@ configuration. Because the simulator is intentionally unpaced, a six-second CITY
 a burst; the dashboard consumes every latest-state update and retains its final state while sampling
 chart points by simulation time.
 
+## Raw CAN session recording and replay
+
+Recording is opt-in. Start the gateway normally, then launch the API with a session name and optional
+scenario metadata:
+
+```powershell
+python -m tuneros.api --gateway-port 45800 --record-session `
+  --session-name "CITY baseline" --scenario city
+```
+
+Normal gateway EOF publishes a version-one `<uuid>.tuneros/` artifact under `data/sessions` by
+default. Set `TUNEROS_SESSION_ROOT` or pass `--session-root` to change it. Replay needs no C++ process:
+
+```powershell
+python -m tuneros.api --replay-session <session-uuid>
+```
+
+Replay remains unpaced and begins after a telemetry WebSocket subscriber attaches. It regenerates
+decoded telemetry from the exact raw frames; no decoded snapshot is stored as canonical session
+data. See [Session recording and replay](docs/SESSIONS.md).
+
 ## PostgreSQL
 
 Create a local environment file, review its development-only values, then start PostgreSQL:
@@ -177,5 +203,6 @@ database.
 - [Telemetry contracts](docs/TELEMETRY.md)
 - [Telemetry API](docs/API.md)
 - [Frontend dashboard](docs/FRONTEND.md)
+- [Session recording and replay](docs/SESSIONS.md)
 - [Diagnostics direction](docs/DIAGNOSTICS.md)
 - [Architecture decisions](docs/DECISIONS.md)

@@ -28,6 +28,7 @@ from tuneros.telemetry.models import (
 )
 
 DEFAULT_SUBSCRIBER_QUEUE_CAPACITY = 256
+DEFAULT_REPLAY_SUBSCRIBER_QUEUE_CAPACITY = 65_536
 DEFAULT_GATEWAY_CONNECT_TIMEOUT_SECONDS = 10.0
 SERVICE_STOP_TIMEOUT_SECONDS = 5.0
 
@@ -40,12 +41,18 @@ class TelemetryServiceState(StrEnum):
     FAILED = "failed"
 
 
+class TelemetrySourceMode(StrEnum):
+    LIVE = "live"
+    REPLAY = "replay"
+
+
 @dataclass(frozen=True, slots=True)
 class TelemetryServiceConfig:
     gateway_host: str = DEFAULT_GATEWAY_HOST
     gateway_port: int = DEFAULT_GATEWAY_PORT
     history_capacity: int = DEFAULT_HISTORY_CAPACITY
     subscriber_queue_capacity: int = DEFAULT_SUBSCRIBER_QUEUE_CAPACITY
+    replay_subscriber_queue_capacity: int = DEFAULT_REPLAY_SUBSCRIBER_QUEUE_CAPACITY
     gateway_connect_timeout_seconds: float = DEFAULT_GATEWAY_CONNECT_TIMEOUT_SECONDS
 
     def __post_init__(self) -> None:
@@ -56,6 +63,9 @@ class TelemetryServiceConfig:
         self._validate_positive_integer("gateway_port", self.gateway_port, maximum=65_535)
         self._validate_positive_integer("history_capacity", self.history_capacity)
         self._validate_positive_integer("subscriber_queue_capacity", self.subscriber_queue_capacity)
+        self._validate_positive_integer(
+            "replay_subscriber_queue_capacity", self.replay_subscriber_queue_capacity
+        )
         if (
             isinstance(self.gateway_connect_timeout_seconds, bool)
             or not isinstance(self.gateway_connect_timeout_seconds, (int, float))
@@ -108,6 +118,20 @@ class GatewayStream(Protocol):
 
 
 type GatewayConnector = Callable[..., GatewayStream]
+
+
+class RawFrameRecorder(Protocol):
+    @property
+    def frame_count(self) -> int: ...
+
+    @property
+    def recording(self) -> bool: ...
+
+    def record(self, frame: RawCanFrame) -> None: ...
+
+    def complete(self): ...
+
+    def abort(self, reason: str): ...
 
 
 class TelemetrySubscription:
@@ -227,10 +251,23 @@ class TelemetryServiceStatus:
     state: TelemetryServiceState
     last_error: str | None
     statistics: TelemetryStatistics
+    source_mode: TelemetrySourceMode
 
     @property
     def gateway_connected(self) -> bool:
-        return self.state is TelemetryServiceState.RUNNING
+        return (
+            self.source_mode is TelemetrySourceMode.LIVE
+            and self.state is TelemetryServiceState.RUNNING
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class TelemetrySourceStatus:
+    mode: TelemetrySourceMode
+    session_id: str | None
+    session_name: str | None
+    recording: bool
+    recorded_frame_count: int
 
 
 class TelemetryService:
@@ -243,6 +280,7 @@ class TelemetryService:
         decoder: TunerOsDbcDecoder | None = None,
         engine: TelemetryEngine | None = None,
         gateway_connector: GatewayConnector = RawCanGatewayClient.connect,
+        recorder: RawFrameRecorder | None = None,
     ) -> None:
         self._config = config or TelemetryServiceConfig()
         self._decoder = decoder or TunerOsDbcDecoder()
@@ -252,6 +290,7 @@ class TelemetryService:
         if engine is not None and engine.history_capacity != self._config.history_capacity:
             raise ValueError("injected engine history capacity must match service configuration")
         self._gateway_connector = gateway_connector
+        self._recorder = recorder
         self._broadcaster = TelemetryBroadcaster(self._config.subscriber_queue_capacity)
         self._lock = threading.RLock()
         self._state_changed = threading.Condition(self._lock)
@@ -261,7 +300,11 @@ class TelemetryService:
         self._worker: threading.Thread | None = None
         self._client: GatewayStream | None = None
         self._stop_requested = threading.Event()
-        self._started_once = False
+        self._live_started_once = False
+        self._source_mode = TelemetrySourceMode.LIVE
+        self._source_session_id: str | None = None
+        self._source_session_name: str | None = None
+        self._replay_start = threading.Event()
 
     @property
     def config(self) -> TelemetryServiceConfig:
@@ -287,9 +330,14 @@ class TelemetryService:
 
     def start(self) -> None:
         with self._lock:
-            if self._started_once:
+            if self._live_started_once:
                 raise RuntimeError("TelemetryService instances cannot be restarted")
-            self._started_once = True
+            if self._state in (TelemetryServiceState.CONNECTING, TelemetryServiceState.RUNNING):
+                raise RuntimeError("a telemetry source is already active")
+            self._live_started_once = True
+            self._source_mode = TelemetrySourceMode.LIVE
+            self._source_session_id = None
+            self._source_session_name = None
             self._stop_requested.clear()
             self._transition_locked(TelemetryServiceState.CONNECTING)
             self._worker = threading.Thread(
@@ -299,8 +347,43 @@ class TelemetryService:
             )
             self._worker.start()
 
+    def start_replay(
+        self,
+        frames: Callable[[], Iterator[RawCanFrame]],
+        *,
+        session_id: str,
+        session_name: str | None,
+        wait_for_subscriber: bool = False,
+    ) -> None:
+        with self._lock:
+            if self._state in (TelemetryServiceState.CONNECTING, TelemetryServiceState.RUNNING):
+                raise RuntimeError("a telemetry source is already active")
+            if self._worker is not None and self._worker.is_alive():
+                raise RuntimeError("previous telemetry source worker is still active")
+            if self._broadcaster.subscriber_count != 0:
+                raise RuntimeError("replay requires all previous telemetry subscribers to close")
+            self._broadcaster = TelemetryBroadcaster(self._config.replay_subscriber_queue_capacity)
+            self._stop_requested.clear()
+            self._engine.reset()
+            self._last_error = None
+            self._source_mode = TelemetrySourceMode.REPLAY
+            self._source_session_id = session_id
+            self._source_session_name = session_name
+            self._replay_start.clear()
+            if not wait_for_subscriber:
+                self._replay_start.set()
+            self._transition_locked(TelemetryServiceState.RUNNING)
+            self._worker = threading.Thread(
+                target=self._run_replay,
+                args=(frames,),
+                name="tuneros-telemetry-replay",
+                daemon=True,
+            )
+            self._worker.start()
+
     def stop(self) -> None:
         self._stop_requested.set()
+        self._replay_start.set()
         with self._lock:
             client = self._client
             worker = self._worker
@@ -353,6 +436,19 @@ class TelemetryService:
                 state=self._state,
                 last_error=self._last_error,
                 statistics=self._engine.statistics(),
+                source_mode=self._source_mode,
+            )
+
+    def source_status(self) -> TelemetrySourceStatus:
+        with self._lock:
+            return TelemetrySourceStatus(
+                mode=self._source_mode,
+                session_id=self._source_session_id,
+                session_name=self._source_session_name,
+                recording=self._recorder.recording if self._recorder is not None else False,
+                recorded_frame_count=self._recorder.frame_count
+                if self._recorder is not None
+                else 0,
             )
 
     def snapshot(self) -> TelemetrySnapshot:
@@ -377,7 +473,10 @@ class TelemetryService:
     ) -> tuple[TelemetrySubscription, TelemetrySnapshot, TelemetryServiceStatus]:
         with self._lock:
             subscription = self._broadcaster.subscribe(loop)
-            return subscription, self._engine.snapshot(), self.status()
+            result = subscription, self._engine.snapshot(), self.status()
+            if self._source_mode is TelemetrySourceMode.REPLAY:
+                self._replay_start.set()
+            return result
 
     def _run_gateway(self) -> None:
         client: GatewayStream | None = None
@@ -395,6 +494,45 @@ class TelemetryService:
             for raw_frame in client.frames():
                 if self._stop_requested.is_set():
                     return
+                if self._recorder is not None:
+                    self._recorder.record(raw_frame)
+                self.ingest_decoded(self._decoder.decode(raw_frame))
+            if self._recorder is not None:
+                self._recorder.complete()
+            with self._lock:
+                if not self._stop_requested.is_set():
+                    self._transition_locked(TelemetryServiceState.COMPLETED)
+        except Exception as error:
+            failure = str(error)
+            if self._recorder is not None:
+                try:
+                    self._recorder.abort(failure)
+                except Exception as recording_error:
+                    failure = f"{failure}; recording finalization failed: {recording_error}"
+            with self._lock:
+                if not self._stop_requested.is_set():
+                    self._transition_locked(TelemetryServiceState.FAILED, failure)
+        finally:
+            if client is not None:
+                client.close()
+            if self._recorder is not None and self._recorder.recording:
+                reason = (
+                    "recording stopped before normal gateway completion"
+                    if self._stop_requested.is_set()
+                    else "recording ended without normal gateway completion"
+                )
+                self._recorder.abort(reason)
+            with self._lock:
+                self._client = None
+
+    def _run_replay(self, frames: Callable[[], Iterator[RawCanFrame]]) -> None:
+        try:
+            self._replay_start.wait()
+            if self._stop_requested.is_set():
+                return
+            for raw_frame in frames():
+                if self._stop_requested.is_set():
+                    return
                 self.ingest_decoded(self._decoder.decode(raw_frame))
             with self._lock:
                 if not self._stop_requested.is_set():
@@ -403,11 +541,6 @@ class TelemetryService:
             with self._lock:
                 if not self._stop_requested.is_set():
                     self._transition_locked(TelemetryServiceState.FAILED, str(error))
-        finally:
-            if client is not None:
-                client.close()
-            with self._lock:
-                self._client = None
 
     def _transition_locked(self, state: TelemetryServiceState, error: str | None = None) -> None:
         self._state = state

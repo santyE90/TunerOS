@@ -2,15 +2,16 @@
 
 ## Scope and boundary
 
-Phase 5A is the first functional TunerOS browser interface. It is an observation-only Next.js 16,
-React 19, and TypeScript engineering workstation. Overview presents selected live engineering
-signals and trends; Telemetry inspects every decoded signal returned by the backend catalog.
+Phase 5A establishes the observation-only Next.js 16, React 19, and TypeScript engineering
+workstation. Phase 5B adds a Sessions view and replay source awareness. Overview presents selected
+live or replayed engineering signals and trends; Telemetry inspects every decoded signal returned by
+the backend catalog.
 
 The browser consumes only FastAPI REST and WebSocket contracts:
 
 ```text
-C++ simulation -> DME/DSC -> synthetic CAN -> TCP gateway -> DBC decode
-               -> TelemetryService -> FastAPI -> Next.js dashboard
+live gateway or raw session -> RawCanFrame -> DBC decode -> TelemetryService
+                              -> FastAPI -> shared provider -> Next.js views
 ```
 
 It does not read `VehicleState`, decode CAN, duplicate scaling, invent values, persist runs, or
@@ -29,7 +30,7 @@ NEXT_PUBLIC_TUNEROS_WS_URL=ws://127.0.0.1:8000
 The WebSocket base is derived from the API URL when its variable is omitted. Copy
 `frontend/.env.example` to `frontend/.env.local` only when overrides are required.
 
-On Windows, after building the C++ targets, use three terminals:
+On Windows, after building the C++ targets, use three terminals for live telemetry:
 
 ```powershell
 # Terminal 1, repository root
@@ -47,13 +48,17 @@ Open `http://localhost:3000`. The simulator is deliberately unpaced, so the six 
 may arrive almost instantly. The UI does not delay or fabricate telemetry to make motion appear
 real-time.
 
+For replay, launch the backend with `python -m tuneros.api --replay-session <session-uuid>` and no
+C++ process, or select a complete compatible capture on the Sessions page of an idle/completed API.
+
 ## Client architecture
 
 `TelemetryProvider` owns one browser WebSocket and a pure reducer-backed state shared by all views.
-Presentational components never fetch independently. At startup, REST status and catalog requests
-run once. The catalog drives the complete Telemetry table; Overview alone uses a centralized map of
-selected canonical signal keys. The focused API module handles non-success responses, and all
-critical REST/WebSocket JSON crosses explicit runtime guards before entering trusted state.
+At startup, REST status, source, and catalog requests run once. The Sessions view uses the focused
+API client for validated catalog/detail requests and invokes replay through a provider action; it
+does not create another telemetry channel. The catalog drives the complete Telemetry table;
+Overview alone uses a centralized map of selected canonical signal keys. All critical REST/WebSocket
+JSON crosses explicit runtime guards before entering trusted state.
 
 The client keeps two independent lifecycle values:
 
@@ -61,7 +66,23 @@ The client keeps two independent lifecycle values:
 - backend service: `stopped`, `connecting`, `running`, `completed`, or `failed`.
 
 The status bar displays both, plus authoritative simulation time, latest frame sequence, and
-observed DME/DSC sources.
+observed DME/DSC sources. It also labels the source `live`, `recording`, or `replay` with the session
+name when available. These source labels do not replace per-signal ECU provenance.
+
+## Sessions and replay reset
+
+`/sessions` lists only complete backend-validated artifacts; it contains no fixture or mock session
+data. Selecting a row fetches immutable metadata including UUID, UTC creation time, scenario,
+duration, frame count, format version, vehicle/network identity, first/last timestamps, and both
+SHA-256 digests. A visible DBC match/mismatch label controls whether replay is available. No local
+filesystem path crosses the API.
+
+Starting replay calls the narrow session replay endpoint, marks the provider source as replay, and
+reconnects its one shared WebSocket. The backend waits for that subscriber. Its first empty
+`initial_snapshot` replaces all previous samples, chart seeds, statistics, observation time, and
+frame sequence before replay deltas begin. This prevents stale live values or sequence numbers from
+mixing with replay. Overview and Telemetry then render replay through their unchanged selectors and
+components.
 
 ## Snapshot and ordered deltas
 
@@ -106,7 +127,8 @@ Never-observed signals render an em dash rather than zero. Stale samples retain 
 
 - Empty or unavailable backend: the shell renders with placeholders and explanatory status.
 - Disconnected socket: last values remain visible while bounded reconnect is attempted.
-- `completed`: final values and charts remain visible and “Simulation complete” is shown.
+- `completed`: final values and charts remain visible; the notice distinguishes simulation from
+  replay completion.
 - `failed`: last values remain visible with a concise backend failure message; traceback details are
   not rendered.
 
@@ -117,6 +139,7 @@ the signal table scrolls rather than truncating engineering columns.
 
 ## Intentionally deferred
 
-CAN Explorer, diagnostics, sessions, calibration, and system tools remain labeled future navigation
-items. There are no raw payloads, DTCs, warning lamps, tune maps, stored drives, scenario controls,
-authentication, persistence, browser-side history recording, or physical CAN functionality.
+CAN Explorer, diagnostics, calibration, and system tools remain labeled future navigation items.
+Sessions are filesystem-backed metadata and full unpaced replay only. There are no raw payload
+tables, DTCs, warning lamps, tune maps, scenario controls, authentication, PostgreSQL session
+indexing, seek/scrub/playback speed, browser-side recording, or physical CAN functionality.

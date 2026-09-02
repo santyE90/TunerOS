@@ -6,7 +6,9 @@ from tuneros.can import (
     CanSignalMetadata,
     DecodedCanFrame,
     GatewayConnectionError,
+    RawCanFrame,
 )
+from tuneros.session import SessionCatalog, SessionRecorder
 from tuneros.telemetry import (
     SignalCatalog,
     TelemetryEngine,
@@ -272,3 +274,83 @@ def test_connected_websocket_receives_gateway_failure_event() -> None:
         assert failure["type"] == "service_state"
         assert failure["state"] == "failed"
         assert failure["error"] == "connected client failure"
+
+
+def test_session_list_detail_source_and_replay_api(tmp_path) -> None:
+    recorder = SessionRecorder(tmp_path, name="CITY baseline", scenario="city")
+    recorder.record(RawCanFrame(0x500, bytes.fromhex("b80b0f2e01"), 0))
+    recorder.record(RawCanFrame(0x520, bytes.fromhex("640001"), 20_000))
+    manifest = recorder.complete()
+    service = TelemetryService()
+    app = create_app(
+        service,
+        autostart=False,
+        session_catalog=SessionCatalog(tmp_path),
+    )
+
+    with TestClient(app) as client:
+        source = client.get("/api/v1/source")
+        sessions = client.get("/api/v1/sessions")
+        detail = client.get(f"/api/v1/sessions/{manifest.session_id}")
+        missing = client.get("/api/v1/sessions/00000000-0000-0000-0000-000000000000")
+        traversal = client.get("/api/v1/sessions/..%2Fmanifest.json")
+        replay = client.post(f"/api/v1/sessions/{manifest.session_id}/replay")
+
+        assert source.json() == {
+            "mode": "live",
+            "session_id": None,
+            "session_name": None,
+            "recording": False,
+            "recorded_frame_count": 0,
+        }
+        assert sessions.status_code == 200
+        assert sessions.json() == [
+            {
+                "session_id": manifest.session_id,
+                "name": "CITY baseline",
+                "created_at_utc": manifest.created_at_utc,
+                "scenario": "city",
+                "status": "complete",
+                "frame_count": 2,
+                "duration_microseconds": 20_000,
+                "dbc_compatible": True,
+            }
+        ]
+        assert detail.status_code == 200
+        assert detail.json()["frames_sha256"] == manifest.frames_sha256
+        assert detail.json()["first_timestamp_microseconds"] == 0
+        assert all("path" not in key for key in detail.json())
+        assert str(tmp_path) not in detail.text
+        assert missing.status_code == 404
+        assert traversal.status_code == 404
+        assert replay.status_code == 202
+        assert replay.json()["source_mode"] == "replay"
+
+        with client.websocket_connect("/api/v1/ws/telemetry") as websocket:
+            assert websocket.receive_json()["snapshot"]["signals"] == []
+            first = websocket.receive_json()
+            second = websocket.receive_json()
+            completed = websocket.receive_json()
+            assert first["frame_sequence"] == 0
+            assert second["frame_sequence"] == 1
+            assert completed["state"] == "completed"
+
+        replay_source = client.get("/api/v1/source").json()
+        assert replay_source["mode"] == "replay"
+        assert replay_source["session_id"] == manifest.session_id
+        assert replay_source["session_name"] == "CITY baseline"
+
+
+def test_session_api_empty_and_incomplete_policy(tmp_path) -> None:
+    incomplete = SessionRecorder(tmp_path)
+    incomplete.abort("test failure")
+    service = TelemetryService()
+    with TestClient(
+        create_app(service, autostart=False, session_catalog=SessionCatalog(tmp_path))
+    ) as client:
+        assert client.get("/api/v1/sessions").json() == []
+        assert client.get(f"/api/v1/sessions/{incomplete.manifest.session_id}").status_code == 404
+        assert (
+            client.post(f"/api/v1/sessions/{incomplete.manifest.session_id}/replay").status_code
+            == 404
+        )
