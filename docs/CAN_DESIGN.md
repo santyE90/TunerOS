@@ -2,7 +2,7 @@
 
 ## Authenticity and source-of-truth rule
 
-**Every identifier, cycle time, and signal layout in Phases 2A–2B is a synthetic TunerOS simulation
+**Every identifier, cycle time, and signal layout in Phases 2A–2C is a synthetic TunerOS simulation
 definition. None is an authentic BMW CAN identifier, PT-CAN capture, reverse-engineered signal, or
 OEM protocol definition.**
 
@@ -97,9 +97,8 @@ Decode policies are deliberately strict:
 - decoded values are wire-quantized engineering values. Tests use tolerances of one millionth of
   each signal resolution: 0.25 rpm, 1/255 normalized, 0.1 kPa, 0.1 degree Celsius, or 0.1 V.
 
-`canmatrix` supplies DBC parsing and scaled decoding without requiring the deferred `python-can`
-transport package. No live C++/Python gateway, FFI, socket, pipe, or telemetry service exists in
-Phase 2B.
+`canmatrix` supplies DBC parsing and scaled decoding without requiring `python-can`. Phase 2C adds a
+narrow standard-library TCP gateway but no FFI, physical adapter, queue, or telemetry service.
 
 ## Simulated DME scheduling
 
@@ -142,5 +141,56 @@ tuneros_can (frame + transport)       tuneros_simulator (VehicleState + evolutio
                     tuneros_dme (DME frames, scheduler, integration runner)
 ```
 
-SocketCAN, physical adapters, live Python CAN ingestion, persistence, telemetry, diagnostics, and UI
-integration remain future work.
+SocketCAN, physical adapters, persistence, telemetry services, diagnostics, and UI integration
+remain future work.
+
+## Phase 2C TCP gateway protocol
+
+The development gateway is a synchronous, one-client TCP server bound to `127.0.0.1`. Port `45800`
+is the centralized default; port zero requests an OS-assigned ephemeral test port. The server accepts
+a client before publishing time-zero frames. Simulation then runs unpaced and may block on local
+socket writes; virtual simulation time and frame timestamps remain authoritative. There is no
+authentication or TLS because exposure is loopback-only.
+
+TCP carries one connection header followed by zero or more fixed 19-byte records. All envelope
+integer metadata is unsigned network/big-endian. CAN payload bytes are copied unchanged; their
+little-endian DBC signal encoding is a separate concern.
+
+Connection header (8 bytes):
+
+| Offset | Length | Field | Encoding | Description |
+| ---: | ---: | --- | --- | --- |
+| 0 | 4 | Magic | ASCII | `TNCR` (`54 4E 43 52`) |
+| 4 | 1 | Version | `uint8` | Protocol version `1` |
+| 5 | 3 | Reserved | bytes | Must be zero |
+
+CAN record (19 bytes):
+
+| Offset | Length | Field | Encoding | Description |
+| ---: | ---: | --- | --- | --- |
+| 0 | 8 | Simulation timestamp | `uint64`, big-endian | Exact microseconds since reset |
+| 8 | 2 | Arbitration ID | `uint16`, big-endian | Standard ID `0x000..0x7FF` |
+| 10 | 1 | DLC | `uint8` | Meaningful payload length `0..8` |
+| 11 | 8 | CAN payload slots | opaque bytes | First DLC bytes meaningful; remainder zero |
+
+Version one has no negotiation. Python rejects bad magic, another version, nonzero reserved bytes,
+invalid ID, or invalid DLC. Reads accumulate across arbitrary TCP segmentation, so split and
+coalesced records have identical meaning. Stream order preserves the DME's `0x500`, `0x501`, `0x502`
+ordering at equal timestamps. EOF between records is normal completion; EOF during a header or record
+is truncation. Connection/write failure ends the run rather than silently dropping frames.
+
+The independent golden vector is:
+
+```text
+header: 54 4E 43 52 01 00 00 00
+frame:  timestamp=12,345,678, id=0x500, dlc=5, payload=70 17 80 40 01
+record: 00 00 00 00 00 BC 61 4E 05 00 05 70 17 80 40 01 00 00 00
+```
+
+`TcpCanTransport` implements `CanTransport`, leaving `SimulatedDme` socket-agnostic:
+
+```text
+tuneros_can <- tuneros_can_gateway
+tuneros_can + tuneros_simulator <- tuneros_dme
+tuneros_can_gateway + tuneros_dme + tuneros_simulator <- tuneros_gateway_sim
+```

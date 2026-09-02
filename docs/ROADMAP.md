@@ -11,7 +11,7 @@ Status notation: **complete** is validated foundation; **planned** is not implem
 | 1C | First Moving-Vehicle Scenario | **Complete** |
 | 2A | Virtual CAN Foundation & First DME Publication | **Complete** |
 | 2B | DBC & Decoding Layer | **Complete** |
-| 2C | Live CAN Gateway Boundary | Planned |
+| 2C | Live Raw CAN Gateway | **Complete** |
 | 3 | ECU Systems Expansion | Planned |
 | 4 | Vehicle Network & Signal Expansion | Planned |
 | 5 | Telemetry Backend | Planned |
@@ -54,9 +54,14 @@ decodes all three DME messages into typed engineering-unit signals, enforces unk
 policies, and proves C++/DBC agreement with independent golden vectors. It adds no live gateway,
 transport adapter, telemetry service, or direct Python access to `VehicleState`.
 
-The recommended next step is Phase 2C: define a live raw-CAN gateway from C++ publication to Python,
-preserve IDs/payloads/timestamps exactly, and feed decoded frames synchronously or through a minimal
-stream boundary. Database, API, diagnostics, and UI work should remain out of scope for that phase.
+Phase 2C adds a version-one fixed-record binary protocol, loopback-only synchronous C++ TCP
+transport/server and simulation executable, Python raw-frame client, compact live DBC consumer,
+golden/stream tests, and an actual C++ to TCP to Python to DBC test. It preserves simulation
+timestamps, IDs, DLC, payload bytes, and stream order without a telemetry service or wall pacing.
+
+The recommended next step is Phase 3A: add the first simulated DSC publication, including synthetic
+vehicle/wheel-speed signals and multi-ECU shared-bus ordering. This extends the intended ECU/raw-CAN
+boundary before introducing higher-level telemetry services.
 
 Further ECU behavior, physical CAN, diagnostics, calibration behavior, and frontend product work
 remain later phases. A later phase begins only after its required contracts and authenticity

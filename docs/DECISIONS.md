@@ -35,6 +35,10 @@ a dated superseding entry.
 | Make the packaged DBC the authoritative external signal schema | C++ retains encoder constants to produce the wire format; downstream engineering meaning comes from one DBC rather than a duplicate Python layout table. |
 | Begin Python at a validated raw-CAN boundary | `RawCanFrame` carries only ID, bytes, and simulation timestamp, preventing Python/backend code from accessing privileged `VehicleState`. |
 | Use `canmatrix` for Phase 2B DBC parsing | It loads and decodes a real DBC without requiring the explicitly deferred `python-can` transport dependency; `cantools` was evaluated but currently requires `python-can`. |
-| Defer live C++/Python transport bridging | Golden raw-frame vectors prove the cross-language wire contract without adding FFI, sockets, pipes, or a premature gateway. |
+| Defer live C++/Python transport bridging through Phase 2B | Golden raw-frame vectors first proved the cross-language contract without prematurely coupling runtimes; Phase 2C supersedes this deferral. |
+| Use TCP loopback for the Phase 2C development gateway | It is language-neutral, native on Windows/POSIX, broker-free, and supported by standard libraries. Loopback binding limits unauthenticated and unencrypted exposure. |
+| Use a versioned header plus fixed binary gateway records | `TNCR` version 1 and 19-byte records handle arbitrary TCP segmentation without JSON, native struct layout, or per-frame magic. |
+| Keep raw CAN as the live process boundary | C++ sends ID, DLC/payload, and authoritative simulation time; Python constructs the existing `RawCanFrame` and uses the unchanged DBC decoder. |
+| Keep the Phase 2C gateway synchronous and unpaced | One client and blocking writes provide a small lossless bridge; wall time, reconnect/replay, multi-client buffering, and brokers add no current value. |
 | Avoid unnecessary distributed or units infrastructure | Message brokers, cloud services, and a dimensional-analysis library add no Phase 0 engineering value. |
 | Defer application frameworks and schemas | FastAPI, ORMs, database migrations, and CAN libraries should follow concrete requirements. |

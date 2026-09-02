@@ -39,8 +39,8 @@ access, not a production telemetry path.
 
 - **C++20:** authoritative deterministic vehicle-side contracts and vehicle state evolution,
   application-level Classic CAN primitives, and simulated ECU publication.
-- **Python 3.12+:** validated raw CAN input and authoritative DBC decoding into typed engineering
-  signals; future gateway, telemetry, diagnostics, persistence, and HTTP/WebSocket services begin
+- **Python 3.12+:** synchronous live raw-CAN gateway input and authoritative DBC decoding into typed
+  engineering signals; future telemetry, diagnostics, persistence, and HTTP/WebSocket services begin
   downstream of this boundary. Python does not define or access C++ `VehicleState`.
 - **TypeScript/Next.js:** operator-facing visualization and investigation workflows only.
 - **PostgreSQL:** future durable configuration, sessions, decoded telemetry, diagnostics, and
@@ -73,20 +73,20 @@ evolution or DME packing.
 `VehicleNetworkSimulation` coordinates vehicle ticks, read-only DME observation, publication, and
 network reset. It does not expose a vehicle-to-telemetry shortcut.
 
-## Raw CAN and Python decode boundary
+## Raw CAN process and Python decode boundary
 
-Phase 2B establishes the first cross-language boundary without FFI or live IPC:
+Phase 2C makes raw CAN the live language/process boundary:
 
 ```text
-C++:    VehicleSimulation -> SimulatedDme -> CanFrame -> CanTransport
-                                                   |
-                                            raw CAN boundary
-                                                   |
-Python:              RawCanFrame -> TunerOsDbcDecoder -> DecodedCanFrame
+C++ process: VehicleSimulation -> SimulatedDme -> CanFrame -> TcpCanTransport
+                                                       |
+                   versioned binary TCP loopback raw-CAN boundary
+                                                       |
+Python process: RawCanGatewayClient -> RawCanFrame -> TunerOsDbcDecoder -> DecodedCanFrame
 ```
 
-The packaged DBC is the authoritative external signal schema. Python receives only arbitration ID,
-payload bytes, and integer simulation timestamp. It neither imports nor mirrors `VehicleState`.
-Independent golden vectors prove agreement with C++ packing. A future live gateway may carry this
-same raw-frame contract; Phase 2B adds no socket, subprocess, physical adapter, queue, or backend
-service.
+The packaged DBC remains authoritative. Python receives only arbitration ID, meaningful payload
+bytes, and integer simulation timestamp; it neither imports nor mirrors `VehicleState`.
+`tuneros_can_gateway` depends only on generic CAN, while the executable composes gateway, DME, and
+simulator targets. The single-client server begins simulation after accept, preserving time-zero
+frames. No telemetry service, physical CAN, broker, persistence, or frontend path is added.

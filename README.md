@@ -6,12 +6,12 @@ automotive telemetry system would use: ECUs, binary CAN frames, decoded signals,
 and a browser interface. The first reference vehicle is a 2010 BMW E90 335i with the N54
 engine.
 
-> **Current status:** Phase 0, Phases 1A–1C, and Phases 2A–2B are complete. C++ provides
+> **Current status:** Phase 0, Phases 1A–1C, and Phases 2A–2C are complete. C++ provides
 > deterministic vehicle simulation, simulated DME publication, synthetic binary Classic CAN, and
-> in-memory transport. Python now validates raw frames and decodes all current signals through the
-> packaged authoritative synthetic DBC. These definitions are not authentic BMW traffic. Live CAN
-> ingestion, physical CAN, telemetry services, persistence, diagnostics, tuning, and dashboard
-> features are not implemented.
+> in-memory transport. A versioned binary TCP loopback gateway carries those raw frames live into
+> Python, which validates and decodes them through the packaged authoritative synthetic DBC. These
+> definitions are not authentic BMW traffic. Physical CAN, telemetry services, persistence,
+> diagnostics, tuning, WebSockets, and dashboard features are not implemented.
 
 ## Architecture at a glance
 
@@ -30,8 +30,8 @@ PostgreSQL remain future presentation and persistence boundaries.
 ## Repository layout
 
 ```text
-backend/       Python raw-frame contract and DBC decoder; future backend services
-can/           C++ Classic CAN transport and simulated DME publication
+backend/       Python raw-frame gateway client and DBC decoder; future backend services
+can/           C++ Classic CAN, simulated DME publication, and loopback gateway
 frontend/      Minimal Next.js and TypeScript application
 shared/        Future language-neutral application contracts
 simulator/     C++20 deterministic IDLE/COLD_START/WARMUP/CITY vehicle simulation
@@ -77,6 +77,25 @@ Formatting is configured by `.clang-format`; when `clang-format` is installed, c
 ```powershell
 clang-format --dry-run --Werror (rg --files simulator can -g '*.hpp' -g '*.cpp')
 ```
+
+## Live synthetic CAN gateway
+
+After building Debug, start the unpaced, loopback-only C++ server in terminal 1:
+
+```powershell
+.\build\cpp\can\Debug\tuneros_gateway_sim.exe --scenario cold-start --port 45800
+```
+
+It prints `LISTENING 45800` and waits, preserving the initial frames. In terminal 2:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python -m tuneros.can.live_decode --port 45800
+```
+
+Supported scenarios are `idle`, `cold-start`, `warmup`, and `city`; `--step-us` and `--duration-us`
+override run timing. The single-client server defaults to maximum speed, has no authentication or
+TLS, and binds only `127.0.0.1`. This is a local process gateway, not physical CAN or telemetry.
 
 ## Frontend setup and checks
 
