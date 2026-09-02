@@ -83,6 +83,9 @@ def _motion(timestamp: int, speed: float = 0.0) -> DecodedCanFrame:
         ({"history_capacity": 0}, ValueError),
         ({"subscriber_queue_capacity": -1}, ValueError),
         ({"replay_subscriber_queue_capacity": 0}, ValueError),
+        ({"can_explorer_capacity": 0}, ValueError),
+        ({"can_subscriber_queue_capacity": 0}, ValueError),
+        ({"can_replay_subscriber_queue_capacity": 0}, ValueError),
         ({"gateway_connect_timeout_seconds": 0}, ValueError),
         ({"gateway_connect_timeout_seconds": float("inf")}, ValueError),
     ],
@@ -95,7 +98,8 @@ def test_service_configuration_validation(
 
 
 def test_service_completes_on_normal_eof_and_retains_final_state() -> None:
-    gateway = FakeGateway((RawCanFrame(0x500, bytes.fromhex("b80b0f2e01"), 0),))
+    raw = RawCanFrame(0x500, bytes.fromhex("b80b0f2e01"), 0)
+    gateway = FakeGateway((raw,))
     service = TelemetryService(gateway_connector=lambda **_: gateway)
 
     service.start()
@@ -110,6 +114,8 @@ def test_service_completes_on_normal_eof_and_retains_final_state() -> None:
     )
     assert service.statistics().total_frames == 1
     assert service.snapshot().observation_timestamp_microseconds == 0
+    assert service.can_statistics().total_frame_count == 1
+    assert service.can_frame(0).raw_frame is raw
     assert gateway.closed
     service.stop()
     assert service.state is TelemetryServiceState.STOPPED
@@ -162,6 +168,22 @@ def test_failed_live_recording_stays_incomplete(tmp_path) -> None:
     service.stop()
 
 
+def test_explorer_preserves_malformed_known_raw_before_telemetry_failure() -> None:
+    raw = RawCanFrame(0x500, b"\x01", 0)
+    service = TelemetryService(gateway_connector=lambda **_: FakeGateway((raw,)))
+
+    service.start()
+    assert service.wait_for_state(TelemetryServiceState.FAILED)
+
+    observed = service.can_frame(0)
+    assert observed is not None
+    assert observed.raw_frame is raw
+    assert observed.decode_status == "error"
+    assert service.can_statistics().total_frame_count == 1
+    assert service.statistics().total_frames == 0
+    service.stop()
+
+
 def test_recording_disabled_writes_nothing(tmp_path) -> None:
     gateway = FakeGateway((RawCanFrame(0x500, bytes.fromhex("b80b0f2e01"), 0),))
     service = TelemetryService(gateway_connector=lambda **_: gateway)
@@ -195,6 +217,31 @@ def test_replay_resets_engine_waits_for_subscriber_and_preserves_source() -> Non
         assert service.source_status().mode is TelemetrySourceMode.REPLAY
         assert service.source_status().session_name == "Replay test"
         subscription.close()
+        service.stop()
+
+    asyncio.run(exercise())
+
+
+def test_can_replay_queue_overflow_disconnects_without_silent_drop() -> None:
+    async def exercise() -> None:
+        service = TelemetryService(TelemetryServiceConfig(can_replay_subscriber_queue_capacity=1))
+        raw_frames = tuple(
+            RawCanFrame(0x500, bytes.fromhex("b80b0f2e01"), timestamp)
+            for timestamp in range(0, 1_000_000, 10_000)
+        )
+        service.start_replay(
+            lambda: iter(raw_frames),
+            session_id="12345678-1234-5678-9234-567812345678",
+            session_name="overflow",
+            wait_for_subscriber=True,
+        )
+        subscription, initial, _, _ = service.subscribe_can(asyncio.get_running_loop())
+        assert initial.frames == ()
+        assert service.wait_for_state(TelemetryServiceState.COMPLETED)
+        item = await asyncio.wait_for(subscription.receive(), timeout=2)
+        assert item == SubscriberClosed("slow_client")
+        assert not subscription.active
+        assert service.can_statistics().total_frame_count == len(raw_frames)
         service.stop()
 
     asyncio.run(exercise())

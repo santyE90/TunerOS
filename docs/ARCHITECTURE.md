@@ -8,8 +8,10 @@ VehicleProfile + InitialConditions + Scenario + Environment + SimulationClock
                          -> simulated ECUs (controller/ECU state)
                          -> binary CAN frames
                          -> CAN transport
-                         +-> raw-CAN session artifact
-                         -> DBC decoder
+                         -> RawCanFrame
+                              +-> raw-CAN session artifact
+                              +-> bounded Raw CAN Explorer
+                              +-> DBC decoder
                          -> telemetry core
                          -> telemetry service
                          -> REST / WebSocket
@@ -42,9 +44,10 @@ access, not a production telemetry path.
 
 - **C++20:** authoritative deterministic vehicle-side contracts and vehicle state evolution,
   application-level Classic CAN primitives, and simulated ECU publication.
-- **Python 3.12+:** synchronous live raw-CAN input, portable raw session recording/replay,
-  authoritative DBC decoding, immutable CAN metadata, deterministic telemetry aggregation, and a
-  FastAPI REST/WebSocket application boundary. Python does not define or access C++ `VehicleState`.
+- **Python 3.12+:** synchronous live raw-CAN input, portable raw session recording/replay, bounded
+  raw inspection, authoritative DBC decoding, immutable CAN metadata, deterministic telemetry
+  aggregation, and a FastAPI REST/WebSocket application boundary. Python does not define or access
+  C++ `VehicleState`.
 - **TypeScript/Next.js:** observation-only operator visualization. Phase 5A owns network contract
   validation, ordered client state, presentation history, and engineering views; Phase 5B adds
   session metadata/replay controls through the same provider. It does not decode CAN or access
@@ -122,9 +125,27 @@ provenance. `TelemetryEngine` synchronously preserves frame arrival order, rejec
 simulation timestamps, updates all signals from one frame atomically, and stores only latest samples,
 bounded per-signal histories, and small statistics.
 
-Raw CAN remains available before decode for the Phase 5B session recorder and a future CAN explorer.
+Raw CAN remains available before decode for the Phase 5B session recorder and Phase 6A explorer.
 Telemetry never retains raw bytes and never accesses `VehicleState`. See
 [Telemetry contracts](TELEMETRY.md).
+
+## Raw CAN Explorer boundary
+
+Phase 6A adds a second observation domain without widening telemetry:
+
+```text
+RawCanGatewayClient or SessionReader -> RawCanFrame
+                                          +-> SessionRecorder (live only)
+                                          +-> CanExplorer -> raw REST / raw WebSocket -> /can
+                                          +-> DBC -> TelemetryEngine -> existing telemetry clients
+```
+
+`CanExplorer` receives the same raw object before telemetry decode, assigns its own source-local
+sequence, annotates from immutable DBC metadata, and retains a bounded recent window plus per-ID
+statistics. Unknown IDs and known-message decode failures remain raw observations. The explorer does
+not own sockets, sessions, telemetry state, or source selection; `TelemetryService` coordinates the
+live/replay tap and lock. Raw and decoded WebSockets remain distinct because their data volume,
+failure policy, and consumers differ. See [Raw CAN Explorer](CAN_EXPLORER.md).
 
 ## Raw session boundary
 
@@ -175,3 +196,7 @@ Phase 5B adds a Sessions view using the focused REST client and the existing pro
 the provider with an authoritative empty WebSocket snapshot before frame-zero deltas, so prior live
 state cannot mix with replay. The browser neither reads raw frame bytes nor opens a second replay
 stream.
+
+Phase 6A mounts a dedicated raw provider only on `/can`. Its bounded frame state and Freeze View are
+disposable presentation concerns; neither changes source ingestion, recording, replay, simulator
+state, or global decoded telemetry.

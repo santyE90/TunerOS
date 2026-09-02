@@ -21,6 +21,9 @@ REPLAY
                                                     -> same REST/WebSocket -> same frontend
 ```
 
+Phase 6A additionally sends each live or replay `RawCanFrame` through the bounded `CanExplorer`
+before the unchanged telemetry decode. This does not alter the version-one artifact.
+
 Recording occurs before decode. It preserves arrival order, duplicate frames, equal timestamps,
 arbitration ID, DLC, meaningful payload bytes, and unsigned integer simulation timestamps exactly.
 Backward timestamps are rejected. Replay does not reconstruct raw frames from decoded data.
@@ -162,6 +165,7 @@ telemetry provider. List and detail are available from `GET /api/v1/sessions` an
 
 ## Deliberately deferred
 
-Phase 5B has no wall-clock pacing, pause, seek, scrub, playback-rate control, CSV export, Raw CAN
-Explorer, diagnostics, database indexing, PostgreSQL session storage, or browser-side recording.
-Those are separate future boundaries.
+The implemented Raw CAN Explorer remains read-only and bounded. Session playback still has no
+wall-clock pacing, pause, seek, scrub, playback-rate control, CSV export, diagnostics, database
+indexing, PostgreSQL session storage, or browser-side recording. Those are separate future
+boundaries.

@@ -5,7 +5,7 @@
 Phase 5A establishes the observation-only Next.js 16, React 19, and TypeScript engineering
 workstation. Phase 5B adds a Sessions view and replay source awareness. Overview presents selected
 live or replayed engineering signals and trends; Telemetry inspects every decoded signal returned by
-the backend catalog.
+the backend catalog. Phase 6A adds a read-only Raw CAN Explorer at `/can`.
 
 The browser consumes only FastAPI REST and WebSocket contracts:
 
@@ -84,6 +84,27 @@ frame sequence before replay deltas begin. This prevents stale live values or se
 mixing with replay. Overview and Telemetry then render replay through their unchanged selectors and
 components.
 
+## Raw CAN Explorer
+
+The `/can` route mounts its own `CanExplorerProvider` and dedicated `/api/v1/ws/can` connection only
+while that page exists. Raw history is not placed in `TelemetryProvider`, so Overview, Telemetry,
+and Sessions do not rerender at raw-frame frequency. The initial raw snapshot is authoritative;
+subsequent one-frame events carry raw sequence and updated statistics. Runtime validation covers
+frames, decoded annotations, rates, source context, and all raw event envelopes.
+
+The client retains at most 1,000 raw observations, bounds its animation-frame pending burst to the
+same size, and renders at most 500 table rows. It rejects duplicate/regressing sequences and reports
+forward gaps without reconstructing them. The page shows a compact per-ID rate table, raw frame
+table, exact bytes, simulation timestamp, selected-frame detail, DBC engineering signals, and clear
+unknown/decode-error states. ID, message, ECU/source, and payload/message text filters are local
+presentation operations; React does not decode signal bitfields.
+
+Follow live displays the newest retained rows first. Freeze View continues consuming into the
+bounded current buffer while holding visible rows and selection stable. It counts passed frames and
+reconciles to the latest bounded buffer on resume. It never pauses the backend, gateway, simulator,
+recording, replay, or decoded telemetry. LIVE/REPLAY and replay session context come from the shared
+backend source contract rather than URL inference.
+
 ## Snapshot and ordered deltas
 
 The WebSocket `initial_snapshot` is authoritative for telemetry initialization. It replaces latest
@@ -139,7 +160,8 @@ the signal table scrolls rather than truncating engineering columns.
 
 ## Intentionally deferred
 
-CAN Explorer, diagnostics, calibration, and system tools remain labeled future navigation items.
-Sessions are filesystem-backed metadata and full unpaced replay only. There are no raw payload
-tables, DTCs, warning lamps, tune maps, scenario controls, authentication, PostgreSQL session
-indexing, seek/scrub/playback speed, browser-side recording, or physical CAN functionality.
+Diagnostics, calibration, and system tools remain labeled future navigation items. Sessions are
+filesystem-backed metadata and full unpaced replay only. CAN Explorer is read-only: there is no CAN
+transmission/editing, DBC editor, DTC interpretation, warning lamps, tune maps, scenario controls,
+authentication, PostgreSQL session indexing, seek/scrub/playback speed, browser-side recording, or
+physical CAN functionality.

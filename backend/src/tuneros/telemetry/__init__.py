@@ -13,8 +13,11 @@ from tuneros.telemetry.models import (
     TelemetryStatistics,
 )
 from tuneros.telemetry.service import (
+    DEFAULT_CAN_REPLAY_SUBSCRIBER_QUEUE_CAPACITY,
+    DEFAULT_CAN_SUBSCRIBER_QUEUE_CAPACITY,
     DEFAULT_REPLAY_SUBSCRIBER_QUEUE_CAPACITY,
     DEFAULT_SUBSCRIBER_QUEUE_CAPACITY,
+    CanExplorerUpdate,
     SubscriberClosed,
     TelemetryBroadcaster,
     TelemetryService,
@@ -29,9 +32,12 @@ from tuneros.telemetry.service import (
 )
 
 __all__ = [
+    "DEFAULT_CAN_REPLAY_SUBSCRIBER_QUEUE_CAPACITY",
+    "DEFAULT_CAN_SUBSCRIBER_QUEUE_CAPACITY",
     "DEFAULT_HISTORY_CAPACITY",
     "DEFAULT_REPLAY_SUBSCRIBER_QUEUE_CAPACITY",
     "DEFAULT_SUBSCRIBER_QUEUE_CAPACITY",
+    "CanExplorerUpdate",
     "OutOfOrderTelemetryError",
     "SignalCatalog",
     "SignalDefinition",

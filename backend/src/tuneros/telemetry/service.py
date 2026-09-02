@@ -9,8 +9,14 @@ from enum import StrEnum
 from typing import Protocol
 
 from tuneros.can import (
+    DEFAULT_CAN_EXPLORER_CAPACITY,
     DEFAULT_GATEWAY_HOST,
     DEFAULT_GATEWAY_PORT,
+    CanExplorer,
+    CanExplorerFrame,
+    CanExplorerSnapshot,
+    CanExplorerStatistics,
+    CanMessageStatistics,
     DecodedCanFrame,
     RawCanFrame,
     RawCanGatewayClient,
@@ -29,6 +35,8 @@ from tuneros.telemetry.models import (
 
 DEFAULT_SUBSCRIBER_QUEUE_CAPACITY = 256
 DEFAULT_REPLAY_SUBSCRIBER_QUEUE_CAPACITY = 65_536
+DEFAULT_CAN_SUBSCRIBER_QUEUE_CAPACITY = 32_768
+DEFAULT_CAN_REPLAY_SUBSCRIBER_QUEUE_CAPACITY = 65_536
 DEFAULT_GATEWAY_CONNECT_TIMEOUT_SECONDS = 10.0
 SERVICE_STOP_TIMEOUT_SECONDS = 5.0
 
@@ -53,6 +61,9 @@ class TelemetryServiceConfig:
     history_capacity: int = DEFAULT_HISTORY_CAPACITY
     subscriber_queue_capacity: int = DEFAULT_SUBSCRIBER_QUEUE_CAPACITY
     replay_subscriber_queue_capacity: int = DEFAULT_REPLAY_SUBSCRIBER_QUEUE_CAPACITY
+    can_explorer_capacity: int = DEFAULT_CAN_EXPLORER_CAPACITY
+    can_subscriber_queue_capacity: int = DEFAULT_CAN_SUBSCRIBER_QUEUE_CAPACITY
+    can_replay_subscriber_queue_capacity: int = DEFAULT_CAN_REPLAY_SUBSCRIBER_QUEUE_CAPACITY
     gateway_connect_timeout_seconds: float = DEFAULT_GATEWAY_CONNECT_TIMEOUT_SECONDS
 
     def __post_init__(self) -> None:
@@ -65,6 +76,13 @@ class TelemetryServiceConfig:
         self._validate_positive_integer("subscriber_queue_capacity", self.subscriber_queue_capacity)
         self._validate_positive_integer(
             "replay_subscriber_queue_capacity", self.replay_subscriber_queue_capacity
+        )
+        self._validate_positive_integer("can_explorer_capacity", self.can_explorer_capacity)
+        self._validate_positive_integer(
+            "can_subscriber_queue_capacity", self.can_subscriber_queue_capacity
+        )
+        self._validate_positive_integer(
+            "can_replay_subscriber_queue_capacity", self.can_replay_subscriber_queue_capacity
         )
         if (
             isinstance(self.gateway_connect_timeout_seconds, bool)
@@ -104,11 +122,22 @@ type TelemetryServiceEvent = TelemetryUpdate | TelemetryServiceStateUpdate
 
 
 @dataclass(frozen=True, slots=True)
+class CanExplorerUpdate:
+    frame: CanExplorerFrame
+    statistics: CanExplorerStatistics
+    message_statistics: CanMessageStatistics
+
+
+type CanExplorerServiceEvent = CanExplorerUpdate | TelemetryServiceStateUpdate
+type ServiceEvent = TelemetryServiceEvent | CanExplorerServiceEvent
+
+
+@dataclass(frozen=True, slots=True)
 class SubscriberClosed:
     reason: str
 
 
-type SubscriberItem = TelemetryServiceEvent | SubscriberClosed
+type SubscriberItem = ServiceEvent | SubscriberClosed
 
 
 class GatewayStream(Protocol):
@@ -167,7 +196,7 @@ class TelemetrySubscription:
     def close(self) -> None:
         self._broadcaster.unsubscribe(self)
 
-    def _schedule(self, event: TelemetryServiceEvent) -> None:
+    def _schedule(self, event: ServiceEvent) -> None:
         with self._state_lock:
             if not self._active:
                 return
@@ -184,7 +213,7 @@ class TelemetrySubscription:
         except RuntimeError:
             self._broadcaster.unsubscribe(self)
 
-    def _deliver(self, event: TelemetryServiceEvent) -> None:
+    def _deliver(self, event: ServiceEvent) -> None:
         if not self.active:
             return
         self._queue.put_nowait(event)
@@ -239,7 +268,7 @@ class TelemetryBroadcaster:
             self._subscriptions.remove(subscription)
             subscription._deactivate("slow_client")
 
-    def publish(self, event: TelemetryServiceEvent) -> None:
+    def publish(self, event: ServiceEvent) -> None:
         with self._lock:
             subscriptions = tuple(self._subscriptions)
         for subscription in subscriptions:
@@ -281,6 +310,7 @@ class TelemetryService:
         engine: TelemetryEngine | None = None,
         gateway_connector: GatewayConnector = RawCanGatewayClient.connect,
         recorder: RawFrameRecorder | None = None,
+        explorer: CanExplorer | None = None,
     ) -> None:
         self._config = config or TelemetryServiceConfig()
         self._decoder = decoder or TunerOsDbcDecoder()
@@ -291,7 +321,11 @@ class TelemetryService:
             raise ValueError("injected engine history capacity must match service configuration")
         self._gateway_connector = gateway_connector
         self._recorder = recorder
+        self._explorer = explorer or CanExplorer(self._decoder, self._config.can_explorer_capacity)
+        if explorer is not None and explorer.capacity != self._config.can_explorer_capacity:
+            raise ValueError("injected CAN explorer capacity must match service configuration")
         self._broadcaster = TelemetryBroadcaster(self._config.subscriber_queue_capacity)
+        self._can_broadcaster = TelemetryBroadcaster(self._config.can_subscriber_queue_capacity)
         self._lock = threading.RLock()
         self._state_changed = threading.Condition(self._lock)
         self._state = TelemetryServiceState.STOPPED
@@ -328,6 +362,10 @@ class TelemetryService:
     def subscriber_count(self) -> int:
         return self._broadcaster.subscriber_count
 
+    @property
+    def can_subscriber_count(self) -> int:
+        return self._can_broadcaster.subscriber_count
+
     def start(self) -> None:
         with self._lock:
             if self._live_started_once:
@@ -338,6 +376,7 @@ class TelemetryService:
             self._source_mode = TelemetrySourceMode.LIVE
             self._source_session_id = None
             self._source_session_name = None
+            self._explorer.reset()
             self._stop_requested.clear()
             self._transition_locked(TelemetryServiceState.CONNECTING)
             self._worker = threading.Thread(
@@ -360,11 +399,18 @@ class TelemetryService:
                 raise RuntimeError("a telemetry source is already active")
             if self._worker is not None and self._worker.is_alive():
                 raise RuntimeError("previous telemetry source worker is still active")
-            if self._broadcaster.subscriber_count != 0:
-                raise RuntimeError("replay requires all previous telemetry subscribers to close")
+            if (
+                self._broadcaster.subscriber_count != 0
+                or self._can_broadcaster.subscriber_count != 0
+            ):
+                raise RuntimeError("replay requires all previous subscribers to close")
             self._broadcaster = TelemetryBroadcaster(self._config.replay_subscriber_queue_capacity)
+            self._can_broadcaster = TelemetryBroadcaster(
+                self._config.can_replay_subscriber_queue_capacity
+            )
             self._stop_requested.clear()
             self._engine.reset()
+            self._explorer.reset()
             self._last_error = None
             self._source_mode = TelemetrySourceMode.REPLAY
             self._source_session_id = session_id
@@ -468,12 +514,64 @@ class TelemetryService:
         with self._lock:
             return self._engine.statistics()
 
+    def can_frames(
+        self,
+        *,
+        limit: int | None = None,
+        arbitration_id: int | None = None,
+        message_name: str | None = None,
+        source_ecu: str | None = None,
+    ) -> tuple[CanExplorerFrame, ...]:
+        with self._lock:
+            return self._explorer.frames(
+                limit=limit,
+                arbitration_id=arbitration_id,
+                message_name=message_name,
+                source_ecu=source_ecu,
+            )
+
+    def can_frame(self, sequence: int) -> CanExplorerFrame | None:
+        with self._lock:
+            return self._explorer.frame(sequence)
+
+    def can_statistics(self) -> CanExplorerStatistics:
+        with self._lock:
+            return self._explorer.statistics()
+
+    def can_message_statistics(self) -> tuple[CanMessageStatistics, ...]:
+        with self._lock:
+            return self._explorer.message_statistics()
+
+    def can_snapshot(self, *, frame_limit: int | None = None) -> CanExplorerSnapshot:
+        with self._lock:
+            return self._explorer.snapshot(frame_limit=frame_limit)
+
     def subscribe(
         self, loop: asyncio.AbstractEventLoop
     ) -> tuple[TelemetrySubscription, TelemetrySnapshot, TelemetryServiceStatus]:
         with self._lock:
             subscription = self._broadcaster.subscribe(loop)
             result = subscription, self._engine.snapshot(), self.status()
+            if self._source_mode is TelemetrySourceMode.REPLAY:
+                self._replay_start.set()
+            return result
+
+    def subscribe_can(
+        self, loop: asyncio.AbstractEventLoop, *, frame_limit: int | None = None
+    ) -> tuple[
+        TelemetrySubscription,
+        CanExplorerSnapshot,
+        TelemetryServiceStatus,
+        TelemetrySourceStatus,
+    ]:
+        with self._lock:
+            subscription = self._can_broadcaster.subscribe(loop)
+            result = (
+                subscription,
+                self._explorer.snapshot(frame_limit=frame_limit),
+                self.status(),
+                self.source_status(),
+            )
             if self._source_mode is TelemetrySourceMode.REPLAY:
                 self._replay_start.set()
             return result
@@ -496,6 +594,7 @@ class TelemetryService:
                     return
                 if self._recorder is not None:
                     self._recorder.record(raw_frame)
+                self._ingest_can_explorer(raw_frame)
                 self.ingest_decoded(self._decoder.decode(raw_frame))
             if self._recorder is not None:
                 self._recorder.complete()
@@ -533,6 +632,7 @@ class TelemetryService:
             for raw_frame in frames():
                 if self._stop_requested.is_set():
                     return
+                self._ingest_can_explorer(raw_frame)
                 self.ingest_decoded(self._decoder.decode(raw_frame))
             with self._lock:
                 if not self._stop_requested.is_set():
@@ -547,4 +647,17 @@ class TelemetryService:
         self._last_error = error
         self._state_transitions.append(state)
         self._state_changed.notify_all()
-        self._broadcaster.publish(TelemetryServiceStateUpdate(state, error))
+        update = TelemetryServiceStateUpdate(state, error)
+        self._broadcaster.publish(update)
+        self._can_broadcaster.publish(update)
+
+    def _ingest_can_explorer(self, raw_frame: RawCanFrame) -> CanExplorerUpdate:
+        with self._lock:
+            frame = self._explorer.ingest(raw_frame)
+            update = CanExplorerUpdate(
+                frame=frame,
+                statistics=self._explorer.statistics(),
+                message_statistics=self._explorer.message_statistic(raw_frame.arbitration_id),
+            )
+            self._can_broadcaster.publish(update)
+            return update

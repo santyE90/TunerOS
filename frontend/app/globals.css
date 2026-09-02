@@ -1129,6 +1129,346 @@ tbody tr.selected {
   }
 }
 
+.can-explorer {
+  display: grid;
+  gap: 16px;
+}
+
+.can-source-strip,
+.can-message-panel,
+.can-frame-panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-1);
+  box-shadow: var(--shadow);
+}
+
+.can-source-strip {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) auto auto;
+  gap: 24px;
+  align-items: center;
+  padding: 14px 18px;
+}
+
+.can-source-strip > div:first-child {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 10px;
+  align-items: center;
+}
+
+.can-source-strip small {
+  grid-column: 2;
+  color: var(--text-muted);
+}
+
+.source-mode,
+.decode-badge {
+  width: max-content;
+  padding: 3px 7px;
+  border-radius: 3px;
+  background: var(--live-soft);
+  color: var(--live);
+  font: 700 0.67rem/1 "SFMono-Regular", Consolas, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.source-mode.replay,
+.decode-badge.unknown {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.decode-badge.error {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.can-source-strip dl {
+  display: flex;
+  gap: 22px;
+  margin: 0;
+}
+
+.can-source-strip dl div {
+  display: grid;
+  gap: 2px;
+}
+
+.can-source-strip dt,
+.can-detail dt {
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.can-source-strip dd,
+.can-detail dd {
+  margin: 0;
+}
+
+.freeze-button,
+.can-filters button {
+  min-height: 36px;
+  padding: 0 13px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-small);
+  background: var(--surface-2);
+  cursor: pointer;
+}
+
+.freeze-button.active {
+  border-color: var(--stale);
+  background: var(--stale-soft);
+  color: var(--stale);
+}
+
+.can-freeze-notice,
+.can-warning,
+.can-error {
+  margin: 0;
+  padding: 9px 13px;
+  border-left: 3px solid var(--stale);
+  background: var(--stale-soft);
+  color: var(--stale);
+  font-size: 0.82rem;
+}
+
+.can-error {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.can-message-panel,
+.can-frame-panel {
+  overflow: hidden;
+}
+
+.can-section-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 18px;
+  padding: 14px 16px 11px;
+  border-bottom: 1px solid var(--border);
+}
+
+.can-section-heading h2 {
+  margin: 2px 0 0;
+  font-size: 1rem;
+}
+
+.can-section-heading > span,
+.follow-control {
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+}
+
+.follow-control {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+}
+
+.can-table-scroll {
+  overflow: auto;
+}
+
+.can-table-scroll.compact {
+  max-height: 260px;
+}
+
+.can-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+
+.can-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 8px 10px;
+  background: var(--surface-0);
+  color: var(--text-muted);
+  font-size: 0.66rem;
+  letter-spacing: 0.06em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.can-table td {
+  padding: 7px 10px;
+  border-top: 1px solid var(--border);
+}
+
+.can-table tbody tr {
+  cursor: pointer;
+}
+
+.can-table tbody tr:hover,
+.can-table tbody tr.selected {
+  background: var(--accent-soft);
+}
+
+.can-id {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.payload-cell {
+  color: #d7e4e8;
+  letter-spacing: 0.08em;
+}
+
+.can-filters {
+  display: grid;
+  grid-template-columns: 130px 1fr 1fr 1fr auto;
+  gap: 9px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.can-filters label {
+  display: grid;
+  gap: 4px;
+  color: var(--text-muted);
+  font-size: 0.66rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.can-filters input {
+  min-width: 0;
+  height: 34px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-small);
+  outline: none;
+  background: var(--surface-0);
+  text-transform: none;
+}
+
+.can-filters input:focus {
+  border-color: var(--accent);
+}
+
+.can-frame-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  min-height: 470px;
+}
+
+.frame-list {
+  max-height: 620px;
+  border-right: 1px solid var(--border);
+}
+
+.can-empty {
+  padding: 24px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.can-detail {
+  padding: 16px;
+  overflow: auto;
+  background: var(--surface-0);
+}
+
+.can-detail h3 {
+  margin: 9px 0 14px;
+}
+
+.can-detail dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.can-detail dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid var(--border);
+}
+
+.payload-detail {
+  display: grid;
+  gap: 7px;
+  margin-top: 16px;
+}
+
+.payload-detail span,
+.decoded-panel h4 {
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.payload-detail code {
+  padding: 12px;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--border);
+  background: var(--surface-1);
+  color: var(--accent);
+  letter-spacing: 0.09em;
+}
+
+.decode-error {
+  margin-top: 12px;
+  color: var(--danger);
+  font-size: 0.75rem;
+}
+
+.decoded-panel {
+  margin-top: 18px;
+}
+
+.decoded-panel table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.72rem;
+}
+
+.decoded-panel th,
+.decoded-panel td {
+  padding: 6px 3px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+@media (max-width: 1100px) {
+  .can-source-strip {
+    grid-template-columns: 1fr auto;
+  }
+
+  .can-source-strip dl {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .can-filters {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .can-frame-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .frame-list {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+}
+
 @media (max-width: 720px) {
   .app-shell {
     display: block;
@@ -1210,6 +1550,19 @@ tbody tr.selected {
 
   .session-row > span:nth-child(3) {
     display: none;
+  }
+
+  .can-source-strip,
+  .can-section-heading {
+    display: grid;
+  }
+
+  .can-source-strip dl {
+    overflow-x: auto;
+  }
+
+  .can-filters {
+    grid-template-columns: 1fr;
   }
 }
 

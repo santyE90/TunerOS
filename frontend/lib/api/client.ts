@@ -1,5 +1,8 @@
 import { TUNEROS_API_URL } from "./config";
 import type {
+  CanExplorerFrame,
+  CanExplorerStatistics,
+  CanMessageStatistics,
   SignalDefinition,
   SignalHistoryResponse,
   SignalResponse,
@@ -11,6 +14,10 @@ import type {
   SessionSummary,
 } from "./types";
 import {
+  parseCanFrame,
+  parseCanFrames,
+  parseCanMessages,
+  parseCanStatistics,
   parseCatalog,
   parseSessionDetail,
   parseSessionReplay,
@@ -75,6 +82,37 @@ export async function fetchTelemetryStatus(): Promise<TelemetryStatus> {
 
 export async function fetchTelemetrySource(): Promise<TelemetrySource> {
   return parseSource(await getJson("/api/v1/source"));
+}
+
+export interface CanFrameQuery {
+  limit?: number;
+  arbitrationId?: number;
+  messageName?: string;
+  sourceEcu?: string;
+}
+
+export async function fetchCanFrames(query: CanFrameQuery = {}): Promise<CanExplorerFrame[]> {
+  const parameters = new URLSearchParams();
+  if (query.limit !== undefined) parameters.set("limit", String(query.limit));
+  if (query.arbitrationId !== undefined) {
+    parameters.set("arbitration_id", String(query.arbitrationId));
+  }
+  if (query.messageName !== undefined) parameters.set("message_name", query.messageName);
+  if (query.sourceEcu !== undefined) parameters.set("source_ecu", query.sourceEcu);
+  const suffix = parameters.size === 0 ? "" : `?${parameters.toString()}`;
+  return parseCanFrames(await getJson(`/api/v1/can/frames${suffix}`));
+}
+
+export async function fetchCanFrame(sequence: number): Promise<CanExplorerFrame> {
+  return parseCanFrame(await getJson(`/api/v1/can/frames/${sequence}`));
+}
+
+export async function fetchCanStatistics(): Promise<CanExplorerStatistics> {
+  return parseCanStatistics(await getJson("/api/v1/can/statistics"));
+}
+
+export async function fetchCanMessages(): Promise<CanMessageStatistics[]> {
+  return parseCanMessages(await getJson("/api/v1/can/messages"));
 }
 
 export async function fetchSessions(): Promise<SessionSummary[]> {

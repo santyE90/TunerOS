@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 from tuneros.api import create_app
 from tuneros.can import (
     CanDatabaseMetadata,
+    CanExplorer,
     CanMessageMetadata,
     CanSignalMetadata,
     DecodedCanFrame,
@@ -13,6 +14,7 @@ from tuneros.telemetry import (
     SignalCatalog,
     TelemetryEngine,
     TelemetryService,
+    TelemetryServiceConfig,
     TelemetryServiceState,
 )
 
@@ -62,6 +64,9 @@ def test_empty_status_snapshot_catalog_statistics_and_openapi() -> None:
         catalog = client.get("/api/v1/catalog")
         statistics = client.get("/api/v1/statistics")
         openapi = client.get("/openapi.json")
+        can_frames = client.get("/api/v1/can/frames")
+        can_statistics = client.get("/api/v1/can/statistics")
+        can_messages = client.get("/api/v1/can/messages")
 
     assert status.status_code == 200
     assert status.json() == {
@@ -77,6 +82,54 @@ def test_empty_status_snapshot_catalog_statistics_and_openapi() -> None:
     assert len(catalog.json()) == 17
     assert statistics.json()["frames_by_message"] == []
     assert openapi.status_code == 200
+    assert can_frames.json() == []
+    assert can_statistics.json()["total_frame_count"] == 0
+    assert can_statistics.json()["source"]["mode"] == "live"
+    assert can_messages.json() == []
+
+
+def test_can_rest_frames_filters_detail_statistics_unknown_and_decode_error() -> None:
+    explorer = CanExplorer(capacity=4)
+    explorer.ingest(RawCanFrame(0x500, bytes.fromhex("7017804001"), 0))
+    explorer.ingest(RawCanFrame(0x123, bytes.fromhex("AA00"), 10_000))
+    explorer.ingest(RawCanFrame(0x500, b"\x01", 20_000))
+    explorer.ingest(RawCanFrame(0x520, bytes.fromhex("000000"), 20_000))
+    explorer.ingest(RawCanFrame(0x521, bytes.fromhex("0000000000000000"), 20_000))
+    service = TelemetryService(
+        config=TelemetryServiceConfig(can_explorer_capacity=4), explorer=explorer
+    )
+
+    with TestClient(create_app(service, autostart=False)) as client:
+        frames = client.get("/api/v1/can/frames?limit=4")
+        by_id = client.get("/api/v1/can/frames?arbitration_id=1280")
+        by_message = client.get("/api/v1/can/frames?message_name=DscVehicleMotion")
+        by_source = client.get("/api/v1/can/frames?source_ecu=TunerOsSimulatedDsc")
+        detail = client.get("/api/v1/can/frames/2")
+        evicted = client.get("/api/v1/can/frames/0")
+        messages = client.get("/api/v1/can/messages")
+        invalid_limits = (
+            client.get("/api/v1/can/frames?limit=0"),
+            client.get("/api/v1/can/frames?limit=1001"),
+        )
+
+    assert frames.status_code == 200
+    assert [item["sequence"] for item in frames.json()] == [1, 2, 3, 4]
+    unknown = frames.json()[0]
+    assert unknown["arbitration_id_hex"] == "0x123"
+    assert unknown["payload"] == [170, 0]
+    assert unknown["payload_hex"] == "AA 00"
+    assert unknown["message_name"] is None
+    assert unknown["decode_status"] == "unknown"
+    malformed = detail.json()
+    assert malformed["decode_status"] == "error"
+    assert malformed["message_name"] == "DmeFastEngine"
+    assert "requires DLC 5" in malformed["decode_error"]
+    assert [item["sequence"] for item in by_id.json()] == [2]
+    assert [item["sequence"] for item in by_message.json()] == [3]
+    assert [item["sequence"] for item in by_source.json()] == [3, 4]
+    assert evicted.status_code == 404
+    assert [item["arbitration_id"] for item in messages.json()] == [0x123, 0x500, 0x520, 0x521]
+    assert all(response.status_code == 422 for response in invalid_limits)
 
 
 def test_latest_signal_canonical_lookup_types_provenance_units_and_freshness() -> None:
@@ -354,3 +407,67 @@ def test_session_api_empty_and_incomplete_policy(tmp_path) -> None:
             client.post(f"/api/v1/sessions/{incomplete.manifest.session_id}/replay").status_code
             == 404
         )
+
+
+def test_can_websocket_replay_snapshot_raw_order_and_completion(tmp_path) -> None:
+    recorder = SessionRecorder(tmp_path, name="one-second opening")
+    raw_frames = (
+        RawCanFrame(0x500, bytes.fromhex("480d0f2e01"), 0),
+        RawCanFrame(0x501, bytes.fromhex("9501001a"), 0),
+        RawCanFrame(0x502, bytes.fromhex("b004b004b0047e"), 0),
+        RawCanFrame(0x520, bytes.fromhex("000000"), 0),
+        RawCanFrame(0x521, bytes.fromhex("0000000000000000"), 0),
+    )
+    for frame in raw_frames:
+        recorder.record(frame)
+    manifest = recorder.complete()
+    service = TelemetryService()
+
+    with TestClient(
+        create_app(service, autostart=False, session_catalog=SessionCatalog(tmp_path))
+    ) as client:
+        assert client.post(f"/api/v1/sessions/{manifest.session_id}/replay").status_code == 202
+        with client.websocket_connect("/api/v1/ws/can") as websocket:
+            initial = websocket.receive_json()
+            assert initial["type"] == "initial_can_snapshot"
+            assert initial["frames"] == []
+            assert initial["statistics"]["source"]["mode"] == "replay"
+            events = [websocket.receive_json() for _ in raw_frames]
+            terminal = websocket.receive_json()
+
+    assert [event["type"] for event in events] == ["can_frame"] * 5
+    assert [event["frame"]["sequence"] for event in events] == [0, 1, 2, 3, 4]
+    assert [event["frame"]["arbitration_id"] for event in events] == [
+        0x500,
+        0x501,
+        0x502,
+        0x520,
+        0x521,
+    ]
+    assert all(event["frame"]["timestamp_microseconds"] == 0 for event in events)
+    assert terminal["type"] == "can_source_state"
+    assert terminal["state"] == "completed"
+
+
+def test_can_websocket_preserves_unknown_frame_before_telemetry_failure(tmp_path) -> None:
+    raw = RawCanFrame(0x123, bytes.fromhex("AABB"), 0)
+    recorder = SessionRecorder(tmp_path)
+    recorder.record(raw)
+    manifest = recorder.complete()
+    service = TelemetryService()
+
+    with TestClient(
+        create_app(service, autostart=False, session_catalog=SessionCatalog(tmp_path))
+    ) as client:
+        client.post(f"/api/v1/sessions/{manifest.session_id}/replay")
+        with client.websocket_connect("/api/v1/ws/can") as websocket:
+            assert websocket.receive_json()["type"] == "initial_can_snapshot"
+            observed = websocket.receive_json()
+            failed = websocket.receive_json()
+
+    assert observed["frame"]["arbitration_id"] == 0x123
+    assert observed["frame"]["payload_hex"] == "AA BB"
+    assert observed["frame"]["decode_status"] == "unknown"
+    assert failed["type"] == "can_source_state"
+    assert failed["state"] == "failed"
+    assert "not defined" in failed["error"]

@@ -76,6 +76,82 @@ export interface TelemetrySource {
   recorded_frame_count: number;
 }
 
+export type CanDecodeStatus = "decoded" | "unknown" | "error";
+
+export interface CanDecodedSignal {
+  signal_name: string;
+  value: SignalValue;
+  unit: string;
+}
+
+export interface CanExplorerFrame {
+  sequence: number;
+  timestamp_microseconds: number;
+  arbitration_id: number;
+  arbitration_id_hex: string;
+  dlc: number;
+  payload: number[];
+  payload_hex: string;
+  message_name: string | null;
+  source_ecu: string | null;
+  expected_period_microseconds: number | null;
+  decode_status: CanDecodeStatus;
+  decode_error: string | null;
+  decoded_signals: CanDecodedSignal[];
+}
+
+export interface CanMessageStatistics {
+  arbitration_id: number;
+  arbitration_id_hex: string;
+  message_name: string | null;
+  source_ecu: string | null;
+  retained_frame_count: number;
+  total_frame_count: number;
+  first_timestamp_microseconds: number;
+  latest_timestamp_microseconds: number;
+  expected_period_microseconds: number | null;
+  observed_average_period_microseconds: number | null;
+  observed_frequency_hz: number | null;
+  latest_dlc: number;
+}
+
+export interface CanExplorerStatistics {
+  retained_frame_count: number;
+  total_frame_count: number;
+  unique_id_count: number;
+  oldest_retained_timestamp_microseconds: number | null;
+  newest_retained_timestamp_microseconds: number | null;
+  last_sequence: number | null;
+  source: TelemetrySource;
+}
+
+export interface InitialCanSnapshotEvent {
+  type: "initial_can_snapshot";
+  frames: CanExplorerFrame[];
+  statistics: CanExplorerStatistics;
+  messages: CanMessageStatistics[];
+  service_state: TelemetryServiceState;
+}
+
+export interface CanFrameEvent {
+  type: "can_frame";
+  frame: CanExplorerFrame;
+  statistics: CanExplorerStatistics;
+  message_statistics: CanMessageStatistics;
+}
+
+export interface CanSourceStateEvent {
+  type: "can_source_state";
+  state: TelemetryServiceState;
+  error: string | null;
+  source: TelemetrySource;
+}
+
+export type CanWebSocketEvent =
+  | InitialCanSnapshotEvent
+  | CanFrameEvent
+  | CanSourceStateEvent;
+
 export interface SessionSummary {
   session_id: string;
   name: string | null;

@@ -8,6 +8,16 @@ from tuneros.can.decoder import (
     UnknownCanFrameError,
     authoritative_dbc_sha256,
 )
+from tuneros.can.explorer import (
+    DEFAULT_CAN_EXPLORER_CAPACITY,
+    CanDecodeStatus,
+    CanExplorer,
+    CanExplorerFrame,
+    CanExplorerSignal,
+    CanExplorerSnapshot,
+    CanExplorerStatistics,
+    CanMessageStatistics,
+)
 from tuneros.can.gateway import (
     DEFAULT_GATEWAY_HOST,
     DEFAULT_GATEWAY_PORT,
@@ -33,7 +43,15 @@ from tuneros.can.record_codec import (
 
 __all__ = [
     "AUTHORITATIVE_DBC_NAME",
+    "DEFAULT_CAN_EXPLORER_CAPACITY",
     "CanDecodeError",
+    "CanDecodeStatus",
+    "CanExplorer",
+    "CanExplorerFrame",
+    "CanExplorerSignal",
+    "CanExplorerSnapshot",
+    "CanExplorerStatistics",
+    "CanMessageStatistics",
     "CanDatabaseMetadata",
     "CanMessageMetadata",
     "CanSignalMetadata",

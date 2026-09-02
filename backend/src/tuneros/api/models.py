@@ -81,6 +81,75 @@ class TelemetrySourceResponse(ApiModel):
     recorded_frame_count: int
 
 
+class CanDecodedSignalResponse(ApiModel):
+    signal_name: str
+    value: SignalValue
+    unit: str
+
+
+class CanExplorerFrameResponse(ApiModel):
+    sequence: int
+    timestamp_microseconds: int
+    arbitration_id: int
+    arbitration_id_hex: str
+    dlc: int
+    payload: list[int]
+    payload_hex: str
+    message_name: str | None
+    source_ecu: str | None
+    expected_period_microseconds: int | None
+    decode_status: Literal["decoded", "unknown", "error"]
+    decode_error: str | None
+    decoded_signals: list[CanDecodedSignalResponse]
+
+
+class CanMessageStatisticsResponse(ApiModel):
+    arbitration_id: int
+    arbitration_id_hex: str
+    message_name: str | None
+    source_ecu: str | None
+    retained_frame_count: int
+    total_frame_count: int
+    first_timestamp_microseconds: int
+    latest_timestamp_microseconds: int
+    expected_period_microseconds: int | None
+    observed_average_period_microseconds: float | None
+    observed_frequency_hz: float | None
+    latest_dlc: int
+
+
+class CanExplorerStatisticsResponse(ApiModel):
+    retained_frame_count: int
+    total_frame_count: int
+    unique_id_count: int
+    oldest_retained_timestamp_microseconds: int | None
+    newest_retained_timestamp_microseconds: int | None
+    last_sequence: int | None
+    source: TelemetrySourceResponse
+
+
+class InitialCanSnapshotEventResponse(ApiModel):
+    type: Literal["initial_can_snapshot"] = "initial_can_snapshot"
+    frames: list[CanExplorerFrameResponse]
+    statistics: CanExplorerStatisticsResponse
+    messages: list[CanMessageStatisticsResponse]
+    service_state: TelemetryServiceState
+
+
+class CanFrameEventResponse(ApiModel):
+    type: Literal["can_frame"] = "can_frame"
+    frame: CanExplorerFrameResponse
+    statistics: CanExplorerStatisticsResponse
+    message_statistics: CanMessageStatisticsResponse
+
+
+class CanSourceStateEventResponse(ApiModel):
+    type: Literal["can_source_state"] = "can_source_state"
+    state: TelemetryServiceState
+    error: str | None
+    source: TelemetrySourceResponse
+
+
 class SessionSummaryResponse(ApiModel):
     session_id: str
     name: str | None

@@ -18,7 +18,7 @@ Status notation: **complete** is validated foundation; **planned** is not implem
 | 4B | Live Telemetry Service & API | **Complete** |
 | 5A | First Live Engineering Dashboard | **Complete** |
 | 5B | Raw CAN Session Recording & Deterministic Replay | **Complete** |
-| 6A | Raw CAN Explorer | Planned |
+| 6A | Raw CAN Explorer | **Complete** |
 | 7 | Drive Sessions & Replay | Planned |
 | 8 | Diagnostics & DTCs | Planned |
 | 9 | Fault Injection | Planned |
@@ -86,9 +86,15 @@ REST/WebSocket, and dashboard. Sessions are cataloged by UUID and visible in the
 recordings remain explicitly incomplete and excluded from replay. No database, decoded canonical
 recording, seek/pacing, deletion, export, or raw-frame UI is added.
 
-The recommended next step is Phase 6A, Raw CAN Explorer. Live and recorded `RawCanFrame` streams now
-provide strong reusable sources for timestamp/ID/DLC/payload inspection without weakening the
-decoded telemetry or session boundaries.
+Phase 6A adds a shared live/replay pre-decode observer, deterministic raw sequence, bounded backend
+and browser buffers, DBC annotations with unknown/error preservation, simulation-time per-ID rates,
+dedicated raw REST/WebSocket contracts, and a read-only `/can` engineering workspace with filters,
+selected-frame detail, and presentation-only Freeze View.
+
+The recommended next step is Phase 7A, Diagnostics & DTC Foundation. The platform now has stable
+simulation, multi-ECU raw traffic, DBC decode, telemetry, durable replay, and direct raw inspection;
+diagnostic state and DTC lifecycle contracts can therefore be introduced without inventing another
+observation shortcut. Session inspection enhancements may follow separately.
 
 Further ECU behavior, physical CAN, diagnostics, calibration behavior, and frontend product work
 remain later phases. A later phase begins only after its required contracts and authenticity

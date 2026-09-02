@@ -7,9 +7,11 @@ from pathlib import Path
 import uvicorn
 
 from tuneros.api import DEFAULT_API_HOST, DEFAULT_API_PORT, create_app
-from tuneros.can import DEFAULT_GATEWAY_HOST, DEFAULT_GATEWAY_PORT
+from tuneros.can import DEFAULT_CAN_EXPLORER_CAPACITY, DEFAULT_GATEWAY_HOST, DEFAULT_GATEWAY_PORT
 from tuneros.session import DEFAULT_SESSION_ROOT, SessionCatalog, SessionRecorder
 from tuneros.telemetry import (
+    DEFAULT_CAN_REPLAY_SUBSCRIBER_QUEUE_CAPACITY,
+    DEFAULT_CAN_SUBSCRIBER_QUEUE_CAPACITY,
     DEFAULT_HISTORY_CAPACITY,
     DEFAULT_REPLAY_SUBSCRIBER_QUEUE_CAPACITY,
     DEFAULT_SUBSCRIBER_QUEUE_CAPACITY,
@@ -34,6 +36,17 @@ def main() -> None:
         type=int,
         default=DEFAULT_REPLAY_SUBSCRIBER_QUEUE_CAPACITY,
     )
+    parser.add_argument("--can-explorer-capacity", type=int, default=DEFAULT_CAN_EXPLORER_CAPACITY)
+    parser.add_argument(
+        "--can-subscriber-queue-capacity",
+        type=int,
+        default=DEFAULT_CAN_SUBSCRIBER_QUEUE_CAPACITY,
+    )
+    parser.add_argument(
+        "--can-replay-subscriber-queue-capacity",
+        type=int,
+        default=DEFAULT_CAN_REPLAY_SUBSCRIBER_QUEUE_CAPACITY,
+    )
     parser.add_argument(
         "--session-root",
         type=Path,
@@ -51,6 +64,9 @@ def main() -> None:
         history_capacity=arguments.history_capacity,
         subscriber_queue_capacity=arguments.subscriber_queue_capacity,
         replay_subscriber_queue_capacity=arguments.replay_subscriber_queue_capacity,
+        can_explorer_capacity=arguments.can_explorer_capacity,
+        can_subscriber_queue_capacity=arguments.can_subscriber_queue_capacity,
+        can_replay_subscriber_queue_capacity=arguments.can_replay_subscriber_queue_capacity,
     )
     catalog = SessionCatalog(arguments.session_root)
     recorder = (

@@ -16,6 +16,12 @@ VehicleState -> simulated DME + simulated DSC -> ordered binary CAN frames -> tr
 Production telemetry must consume the decoded CAN path. It must not read privileged `VehicleState`
 directly. Tests may inspect both sides to verify the boundary.
 
+Phase 6A's Raw CAN Explorer observes the existing `RawCanFrame` stream before decode. It does not
+alter ECU publication, arbitration-ID order, transport, payload encoding, timestamping, or DBC
+authority. Live gateway and session replay frames use the same explorer model. DBC-known frames gain
+read-only metadata and engineering values; unknown IDs and decode failures remain visible raw
+observations. The explorer cannot transmit or edit frames. See [Raw CAN Explorer](CAN_EXPLORER.md).
+
 Vehicle speed remains absent from DME. Phase 3A makes the simulated DSC its synthetic CAN publisher.
 The DSC derives four equal wheel speeds directly from vehicle speed because independent wheel physics
 does not exist yet; `VehicleState` is not expanded with redundant wheel fields.

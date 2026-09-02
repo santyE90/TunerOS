@@ -68,6 +68,10 @@ transmitter names.
 | --- | --- |
 | `GET /api/v1/status` | Service state, connection flag, last error, latest timestamp, frame/update totals |
 | `GET /api/v1/source` | Live/replay mode, replay session identity, and live recording state |
+| `GET /api/v1/can/frames` | Bounded recent raw observations with optional ID/message/source filters |
+| `GET /api/v1/can/frames/{sequence}` | One retained raw observation or 404 after eviction/absence |
+| `GET /api/v1/can/statistics` | Raw buffer totals, sequence, timestamps, unique IDs, and shared source |
+| `GET /api/v1/can/messages` | Per-ID retained/lifetime counts and simulation-time rates since source reset |
 | `GET /api/v1/sessions` | Validated complete session summaries and installed-DBC compatibility |
 | `GET /api/v1/sessions/{session_id}` | Validated complete manifest detail; accepts a canonical UUID only |
 | `POST /api/v1/sessions/{session_id}/replay` | Reset telemetry and stage compatible raw replay; returns 202 |
@@ -116,6 +120,16 @@ Example signal response:
 Boolean values remain JSON booleans and numerical values remain JSON numbers. CAN IDs are integers
 with an additional consistently formatted hexadecimal field. Statistics use a list of message-count
 objects rather than relying on JSON conversion of integer dictionary keys.
+
+Raw frame responses keep bytes unambiguous as both an integer array and uppercase spaced hex, with
+no padding beyond DLC. Known IDs include DBC-derived name, transmitter, expected period, and decoded
+engineering-value signals. Unknown IDs use null metadata and `decode_status: "unknown"`. A valid
+known-ID frame that fails DBC decode remains present with `decode_status: "error"` and safe detail.
+
+`GET /api/v1/can/frames` returns oldest-to-newest order. `limit` defaults to 500 and is bounded to
+1,000; it selects the most recent matching tail. Optional `arbitration_id` (integer 0–2047),
+`message_name`, and `source_ecu` filters are deterministic exact matches. These routes never expose
+session paths or raw-frame transmit controls.
 
 ## WebSocket contract
 
@@ -172,13 +186,28 @@ Unpaced replay uses a separately configurable bounded queue of 65,536 events by 
 overflow removes only that slow client and closes it with code 1013 and reason `slow_client`; events
 are not silently discarded and ingestion does not block.
 
+## Raw CAN WebSocket
+
+Connect to `WS /api/v1/ws/can`. This is a dedicated raw inspection stream; `/ws/telemetry` remains
+decoded and unchanged. `initial_can_snapshot` carries at most the most recent 1,000 raw observations,
+global raw statistics, per-ID statistics, shared source context, and service state. Every subsequent
+source frame produces one `can_frame` event containing the immutable observation, current global
+statistics, and updated statistics for that ID. Lifecycle uses `can_source_state`.
+
+Raw sequence is source-local and independent of telemetry sequence, so unknown or decode-error
+frames still occupy their arrival position. Each raw client is independently bounded: 32,768 events
+for live and 65,536 for unpaced replay by default. Overflow closes only that client with code 1013
+and `slow_client`; it does not block ingestion or silently discard frames within the connection.
+Completion/failure terminal behavior matches the telemetry socket. See
+[Raw CAN Explorer](CAN_EXPLORER.md).
+
 ## Local security and deferred functionality
 
 Development CORS allows only `http://localhost:3000` and `http://127.0.0.1:3000`. Defaults are
 loopback-only, but Phase 4B provides no authentication, authorization, or TLS and must not be treated
 as a production deployment configuration.
 
-Diagnostics, tuning, raw-CAN browser streaming, simulator control, authentication, session database
+Diagnostics, tuning, CAN transmission, simulator control, authentication, session database
 indexing, advanced playback controls, and physical CAN remain deferred. Phase 5B keeps raw payloads
 inside the session layer and exposes metadata rather than filesystem paths. See
 [Frontend dashboard](FRONTEND.md) and [Session recording and replay](SESSIONS.md).

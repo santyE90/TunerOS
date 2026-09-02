@@ -69,5 +69,13 @@ a dated superseding entry.
 | Retain partial recordings as incomplete evidence | `<uuid>.partial` artifacts cannot appear in the normal catalog or replay but preserve frames and failure metadata for inspection. |
 | Allow only one telemetry source per service | Replay resets a fresh telemetry engine and cannot run beside a connecting/running live source; per-signal DME/DSC provenance remains unchanged. |
 | Keep Phase 5B replay full-run and unpaced | Replay preserves recorded order at maximum speed, waits for a subscriber, and uses a separate bounded 65,536-event delivery queue; seek, pause, rate control, and simulation-time sleeps remain deferred. |
+| Tap the Raw CAN Explorer before telemetry decode | The explorer preserves the exact source frame and can retain unknown or malformed-for-DBC evidence without reconstructing bytes from decoded signals. |
+| Keep raw and telemetry WebSockets separate | Raw inspection and decoded application telemetry have different schemas, volume, failure policy, buffer needs, and page lifetimes. |
+| Bound raw inspection at every consumer | The backend retains 4,096 frames, the browser retains 1,000 and renders at most 500, while lifetime per-ID counts remain bounded by standard CAN ID space. |
+| Derive observed CAN rates from simulation time | `(last-first)/(count-1)` remains deterministic under unpaced execution and never confuses host throughput with simulated publication frequency. |
+| Treat unknown IDs as valid explorer observations | DBC absence removes annotation but does not make an otherwise valid standard `RawCanFrame` corrupt, preserving a future physical-CAN-compatible boundary. |
+| Preserve raw observations when DBC decode fails | The explorer records a decode-error status and known metadata before the stricter telemetry path handles its own failure policy. |
+| Make CAN Explorer Freeze View presentation-only | The page continues bounded event consumption while displayed rows remain stable; simulator, ingestion, recording, replay, and telemetry are never paused. |
+| Keep the Raw CAN Explorer read-only and source-neutral | One synchronous model handles live and replay frames without sockets, transmit controls, DBC editing, diagnostics, or source ownership. |
 | Avoid unnecessary distributed or units infrastructure | Message brokers, cloud services, and a dimensional-analysis library add no Phase 0 engineering value. |
 | Defer persistence frameworks and schemas | ORMs, database migrations, brokers, and unrelated application infrastructure should follow concrete requirements. |

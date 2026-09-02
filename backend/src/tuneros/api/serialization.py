@@ -1,6 +1,13 @@
 """Adapt immutable telemetry-domain values to explicit API models."""
 
 from tuneros.api.models import (
+    CanDecodedSignalResponse,
+    CanExplorerFrameResponse,
+    CanExplorerStatisticsResponse,
+    CanFrameEventResponse,
+    CanMessageStatisticsResponse,
+    CanSourceStateEventResponse,
+    InitialCanSnapshotEventResponse,
     InitialSnapshotEventResponse,
     MessageFrameCountResponse,
     ServiceStateEventResponse,
@@ -10,17 +17,27 @@ from tuneros.api.models import (
     SignalKeyResponse,
     SignalSampleResponse,
     TelemetrySnapshotResponse,
+    TelemetrySourceResponse,
     TelemetryStatisticsResponse,
     TelemetryUpdateEventResponse,
 )
+from tuneros.can import (
+    CanExplorerFrame,
+    CanExplorerSnapshot,
+    CanExplorerStatistics,
+    CanMessageStatistics,
+)
 from tuneros.session import SessionManifest
 from tuneros.telemetry import (
+    CanExplorerUpdate,
     SignalDefinition,
     SignalFreshness,
     SignalSample,
     TelemetryService,
+    TelemetryServiceState,
     TelemetryServiceStateUpdate,
     TelemetrySnapshot,
+    TelemetrySourceStatus,
     TelemetryStatistics,
     TelemetryUpdate,
 )
@@ -28,6 +45,108 @@ from tuneros.telemetry import (
 
 def format_arbitration_id(arbitration_id: int) -> str:
     return f"0x{arbitration_id:03X}"
+
+
+def serialize_source(source: TelemetrySourceStatus) -> TelemetrySourceResponse:
+    return TelemetrySourceResponse(
+        mode=source.mode,
+        session_id=source.session_id,
+        session_name=source.session_name,
+        recording=source.recording,
+        recorded_frame_count=source.recorded_frame_count,
+    )
+
+
+def serialize_can_frame(frame: CanExplorerFrame) -> CanExplorerFrameResponse:
+    raw = frame.raw_frame
+    return CanExplorerFrameResponse(
+        sequence=frame.sequence,
+        timestamp_microseconds=raw.timestamp_microseconds,
+        arbitration_id=raw.arbitration_id,
+        arbitration_id_hex=format_arbitration_id(raw.arbitration_id),
+        dlc=raw.payload_length,
+        payload=list(raw.payload),
+        payload_hex=" ".join(f"{byte:02X}" for byte in raw.payload),
+        message_name=frame.message_name,
+        source_ecu=frame.source_ecu,
+        expected_period_microseconds=frame.expected_period_microseconds,
+        decode_status=frame.decode_status,
+        decode_error=frame.decode_error,
+        decoded_signals=[
+            CanDecodedSignalResponse(
+                signal_name=signal.signal_name,
+                value=signal.value,
+                unit=signal.unit,
+            )
+            for signal in frame.decoded_signals
+        ],
+    )
+
+
+def serialize_can_message_statistics(
+    statistics: CanMessageStatistics,
+) -> CanMessageStatisticsResponse:
+    return CanMessageStatisticsResponse(
+        arbitration_id=statistics.arbitration_id,
+        arbitration_id_hex=format_arbitration_id(statistics.arbitration_id),
+        message_name=statistics.message_name,
+        source_ecu=statistics.source_ecu,
+        retained_frame_count=statistics.retained_frame_count,
+        total_frame_count=statistics.total_frame_count,
+        first_timestamp_microseconds=statistics.first_timestamp_microseconds,
+        latest_timestamp_microseconds=statistics.latest_timestamp_microseconds,
+        expected_period_microseconds=statistics.expected_period_microseconds,
+        observed_average_period_microseconds=statistics.observed_average_period_microseconds,
+        observed_frequency_hz=statistics.observed_frequency_hz,
+        latest_dlc=statistics.latest_dlc,
+    )
+
+
+def serialize_can_statistics(
+    statistics: CanExplorerStatistics, source: TelemetrySourceStatus
+) -> CanExplorerStatisticsResponse:
+    return CanExplorerStatisticsResponse(
+        retained_frame_count=statistics.retained_frame_count,
+        total_frame_count=statistics.total_frame_count,
+        unique_id_count=statistics.unique_id_count,
+        oldest_retained_timestamp_microseconds=(statistics.oldest_retained_timestamp_microseconds),
+        newest_retained_timestamp_microseconds=(statistics.newest_retained_timestamp_microseconds),
+        last_sequence=statistics.last_sequence,
+        source=serialize_source(source),
+    )
+
+
+def serialize_initial_can_snapshot(
+    snapshot: CanExplorerSnapshot,
+    source: TelemetrySourceStatus,
+    state: TelemetryServiceState,
+) -> InitialCanSnapshotEventResponse:
+    return InitialCanSnapshotEventResponse(
+        frames=[serialize_can_frame(frame) for frame in snapshot.frames],
+        statistics=serialize_can_statistics(snapshot.statistics, source),
+        messages=[serialize_can_message_statistics(statistics) for statistics in snapshot.messages],
+        service_state=state,
+    )
+
+
+def serialize_can_update(
+    update: CanExplorerUpdate, source: TelemetrySourceStatus
+) -> CanFrameEventResponse:
+    return CanFrameEventResponse(
+        frame=serialize_can_frame(update.frame),
+        statistics=serialize_can_statistics(update.statistics, source),
+        message_statistics=serialize_can_message_statistics(update.message_statistics),
+    )
+
+
+def serialize_can_source_state(
+    update: TelemetryServiceStateUpdate, source: TelemetrySourceStatus
+) -> CanSourceStateEventResponse:
+    return CanSourceStateEventResponse(
+        state=update.state,
+        error=update.error,
+        source=serialize_source(source),
+    )
 
 
 def serialize_definition(definition: SignalDefinition) -> SignalDefinitionResponse:

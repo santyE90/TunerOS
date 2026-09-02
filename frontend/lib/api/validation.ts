@@ -1,4 +1,8 @@
 import type {
+  CanExplorerFrame,
+  CanExplorerStatistics,
+  CanMessageStatistics,
+  CanWebSocketEvent,
   InitialSnapshotEvent,
   MessageFrameCount,
   ServiceStateEvent,
@@ -75,6 +79,79 @@ function isSessionDetail(value: unknown): value is SessionDetail {
     typeof value.frames_sha256 === "string" &&
     isNullableInteger(value.first_timestamp_microseconds) &&
     isNullableInteger(value.last_timestamp_microseconds)
+  );
+}
+
+function isCanFrame(value: unknown): value is CanExplorerFrame {
+  return (
+    isRecord(value) &&
+    isInteger(value.sequence) &&
+    isInteger(value.timestamp_microseconds) &&
+    isInteger(value.arbitration_id) &&
+    typeof value.arbitration_id_hex === "string" &&
+    isInteger(value.dlc) &&
+    value.dlc >= 0 &&
+    value.dlc <= 8 &&
+    Array.isArray(value.payload) &&
+    value.payload.length === value.dlc &&
+    value.payload.every((byte) => isInteger(byte) && byte >= 0 && byte <= 255) &&
+    typeof value.payload_hex === "string" &&
+    isNullableString(value.message_name) &&
+    isNullableString(value.source_ecu) &&
+    isNullableInteger(value.expected_period_microseconds) &&
+    ["decoded", "unknown", "error"].includes(String(value.decode_status)) &&
+    isNullableString(value.decode_error) &&
+    Array.isArray(value.decoded_signals) &&
+    value.decoded_signals.every(
+      (signal) =>
+        isRecord(signal) &&
+        typeof signal.signal_name === "string" &&
+        (typeof signal.value === "number" || typeof signal.value === "boolean") &&
+        typeof signal.unit === "string",
+    )
+  );
+}
+
+function isCanMessageStatistics(value: unknown): value is CanMessageStatistics {
+  return (
+    isRecord(value) &&
+    isInteger(value.arbitration_id) &&
+    typeof value.arbitration_id_hex === "string" &&
+    isNullableString(value.message_name) &&
+    isNullableString(value.source_ecu) &&
+    isInteger(value.retained_frame_count) &&
+    isInteger(value.total_frame_count) &&
+    isInteger(value.first_timestamp_microseconds) &&
+    isInteger(value.latest_timestamp_microseconds) &&
+    isNullableInteger(value.expected_period_microseconds) &&
+    (value.observed_average_period_microseconds === null ||
+      typeof value.observed_average_period_microseconds === "number") &&
+    (value.observed_frequency_hz === null || typeof value.observed_frequency_hz === "number") &&
+    isInteger(value.latest_dlc)
+  );
+}
+
+function isSource(value: unknown): value is TelemetrySource {
+  return (
+    isRecord(value) &&
+    (value.mode === "live" || value.mode === "replay") &&
+    isNullableString(value.session_id) &&
+    isNullableString(value.session_name) &&
+    typeof value.recording === "boolean" &&
+    isInteger(value.recorded_frame_count)
+  );
+}
+
+function isCanStatistics(value: unknown): value is CanExplorerStatistics {
+  return (
+    isRecord(value) &&
+    isInteger(value.retained_frame_count) &&
+    isInteger(value.total_frame_count) &&
+    isInteger(value.unique_id_count) &&
+    isNullableInteger(value.oldest_retained_timestamp_microseconds) &&
+    isNullableInteger(value.newest_retained_timestamp_microseconds) &&
+    isNullableInteger(value.last_sequence) &&
+    isSource(value.source)
   );
 }
 
@@ -172,14 +249,7 @@ export function parseStatus(value: unknown): TelemetryStatus {
 }
 
 export function parseSource(value: unknown): TelemetrySource {
-  if (
-    !isRecord(value) ||
-    (value.mode !== "live" && value.mode !== "replay") ||
-    !isNullableString(value.session_id) ||
-    !isNullableString(value.session_name) ||
-    typeof value.recording !== "boolean" ||
-    !isInteger(value.recorded_frame_count)
-  ) {
+  if (!isSource(value)) {
     throw new Error("Backend returned an invalid telemetry source response");
   }
   return {
@@ -189,6 +259,64 @@ export function parseSource(value: unknown): TelemetrySource {
     recording: value.recording,
     recorded_frame_count: value.recorded_frame_count,
   };
+}
+
+export function parseCanFrames(value: unknown): CanExplorerFrame[] {
+  if (!Array.isArray(value) || !value.every(isCanFrame)) {
+    throw new Error("Backend returned an invalid raw CAN frame response");
+  }
+  return value;
+}
+
+export function parseCanFrame(value: unknown): CanExplorerFrame {
+  if (!isCanFrame(value)) throw new Error("Backend returned an invalid raw CAN frame response");
+  return value;
+}
+
+export function parseCanMessages(value: unknown): CanMessageStatistics[] {
+  if (!Array.isArray(value) || !value.every(isCanMessageStatistics)) {
+    throw new Error("Backend returned invalid CAN message statistics");
+  }
+  return value;
+}
+
+export function parseCanStatistics(value: unknown): CanExplorerStatistics {
+  if (!isCanStatistics(value)) throw new Error("Backend returned invalid CAN explorer statistics");
+  return value;
+}
+
+export function parseCanWebSocketEvent(value: unknown): CanWebSocketEvent {
+  if (!isRecord(value) || typeof value.type !== "string") {
+    throw new Error("CAN WebSocket sent an invalid event envelope");
+  }
+  if (
+    value.type === "initial_can_snapshot" &&
+    Array.isArray(value.frames) &&
+    value.frames.every(isCanFrame) &&
+    isCanStatistics(value.statistics) &&
+    Array.isArray(value.messages) &&
+    value.messages.every(isCanMessageStatistics) &&
+    isServiceState(value.service_state)
+  ) {
+    return value as unknown as CanWebSocketEvent;
+  }
+  if (
+    value.type === "can_frame" &&
+    isCanFrame(value.frame) &&
+    isCanStatistics(value.statistics) &&
+    isCanMessageStatistics(value.message_statistics)
+  ) {
+    return value as unknown as CanWebSocketEvent;
+  }
+  if (
+    value.type === "can_source_state" &&
+    isServiceState(value.state) &&
+    isNullableString(value.error) &&
+    isSource(value.source)
+  ) {
+    return value as unknown as CanWebSocketEvent;
+  }
+  throw new Error(`CAN WebSocket sent an invalid ${value.type} event`);
 }
 
 export function parseSessions(value: unknown): SessionSummary[] {

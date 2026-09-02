@@ -5,10 +5,14 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Annotated
 
-from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Path, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from tuneros.api.models import (
+    CanExplorerFrameResponse,
+    CanExplorerStatisticsResponse,
+    CanMessageStatisticsResponse,
+    CanSourceStateEventResponse,
     ServiceStateEventResponse,
     SessionDetailResponse,
     SessionReplayResponse,
@@ -22,18 +26,26 @@ from tuneros.api.models import (
     TelemetryStatusResponse,
 )
 from tuneros.api.serialization import (
+    serialize_can_frame,
+    serialize_can_message_statistics,
+    serialize_can_source_state,
+    serialize_can_statistics,
+    serialize_can_update,
     serialize_definition,
+    serialize_initial_can_snapshot,
     serialize_initial_snapshot,
     serialize_sample,
     serialize_service_state,
     serialize_session_detail,
     serialize_session_summary,
     serialize_snapshot,
+    serialize_source,
     serialize_statistics,
     serialize_update,
 )
 from tuneros.session import SessionCatalog, SessionError
 from tuneros.telemetry import (
+    CanExplorerUpdate,
     SignalKey,
     SubscriberClosed,
     TelemetrySchemaError,
@@ -48,6 +60,9 @@ API_PREFIX = "/api/v1"
 DEFAULT_API_HOST = "127.0.0.1"
 DEFAULT_API_PORT = 8_000
 DEFAULT_CORS_ORIGINS = ("http://localhost:3000", "http://127.0.0.1:3000")
+DEFAULT_CAN_FRAME_QUERY_LIMIT = 500
+MAX_CAN_FRAME_QUERY_LIMIT = 1_000
+CAN_WEBSOCKET_INITIAL_FRAME_LIMIT = 1_000
 
 
 def create_app(
@@ -150,14 +165,48 @@ def create_app(
 
     @app.get(f"{API_PREFIX}/source", response_model=TelemetrySourceResponse)
     def get_source() -> TelemetrySourceResponse:
-        source = telemetry_service.source_status()
-        return TelemetrySourceResponse(
-            mode=source.mode,
-            session_id=source.session_id,
-            session_name=source.session_name,
-            recording=source.recording,
-            recorded_frame_count=source.recorded_frame_count,
+        return serialize_source(telemetry_service.source_status())
+
+    @app.get(f"{API_PREFIX}/can/frames", response_model=list[CanExplorerFrameResponse])
+    def get_can_frames(
+        limit: Annotated[
+            int, Query(gt=0, le=MAX_CAN_FRAME_QUERY_LIMIT)
+        ] = DEFAULT_CAN_FRAME_QUERY_LIMIT,
+        arbitration_id: Annotated[int | None, Query(ge=0, le=0x7FF)] = None,
+        message_name: str | None = None,
+        source_ecu: str | None = None,
+    ) -> list[CanExplorerFrameResponse]:
+        return [
+            serialize_can_frame(frame)
+            for frame in telemetry_service.can_frames(
+                limit=limit,
+                arbitration_id=arbitration_id,
+                message_name=message_name,
+                source_ecu=source_ecu,
+            )
+        ]
+
+    @app.get(f"{API_PREFIX}/can/frames/{{sequence}}", response_model=CanExplorerFrameResponse)
+    def get_can_frame(sequence: Annotated[int, Path(ge=0)]) -> CanExplorerFrameResponse:
+        frame = telemetry_service.can_frame(sequence)
+        if frame is None:
+            raise HTTPException(
+                status_code=404, detail=f"CAN frame sequence {sequence} not retained"
+            )
+        return serialize_can_frame(frame)
+
+    @app.get(f"{API_PREFIX}/can/statistics", response_model=CanExplorerStatisticsResponse)
+    def get_can_statistics() -> CanExplorerStatisticsResponse:
+        return serialize_can_statistics(
+            telemetry_service.can_statistics(), telemetry_service.source_status()
         )
+
+    @app.get(f"{API_PREFIX}/can/messages", response_model=list[CanMessageStatisticsResponse])
+    def get_can_messages() -> list[CanMessageStatisticsResponse]:
+        return [
+            serialize_can_message_statistics(statistics)
+            for statistics in telemetry_service.can_message_statistics()
+        ]
 
     @app.get(f"{API_PREFIX}/sessions", response_model=list[SessionSummaryResponse])
     def get_sessions() -> list[SessionSummaryResponse]:
@@ -281,6 +330,53 @@ def create_app(
                     event = serialize_service_state(item)
                 else:  # pragma: no cover - closed union is exhaustive
                     raise AssertionError("unknown telemetry subscriber item")
+                await websocket.send_json(event.model_dump(mode="json"))
+                if isinstance(item, TelemetryServiceStateUpdate) and item.state in (
+                    TelemetryServiceState.COMPLETED,
+                    TelemetryServiceState.FAILED,
+                    TelemetryServiceState.STOPPED,
+                ):
+                    await websocket.close(
+                        code=1000 if item.state is not TelemetryServiceState.FAILED else 1011
+                    )
+                    return
+        except WebSocketDisconnect:
+            return
+        finally:
+            subscription.close()
+
+    @app.websocket(f"{API_PREFIX}/ws/can")
+    async def can_websocket(websocket: WebSocket) -> None:
+        await websocket.accept()
+        subscription, snapshot, status, source = telemetry_service.subscribe_can(
+            asyncio.get_running_loop(), frame_limit=CAN_WEBSOCKET_INITIAL_FRAME_LIMIT
+        )
+        try:
+            initial = serialize_initial_can_snapshot(snapshot, source, status.state)
+            await websocket.send_json(initial.model_dump(mode="json"))
+            if status.state in (TelemetryServiceState.COMPLETED, TelemetryServiceState.FAILED):
+                terminal = CanSourceStateEventResponse(
+                    state=status.state,
+                    error=status.last_error,
+                    source=serialize_source(source),
+                )
+                await websocket.send_json(terminal.model_dump(mode="json"))
+                await websocket.close(
+                    code=1000 if status.state is TelemetryServiceState.COMPLETED else 1011
+                )
+                return
+
+            while True:
+                item = await subscription.receive()
+                if isinstance(item, SubscriberClosed):
+                    await websocket.close(code=1013, reason=item.reason)
+                    return
+                if isinstance(item, CanExplorerUpdate):
+                    event = serialize_can_update(item, telemetry_service.source_status())
+                elif isinstance(item, TelemetryServiceStateUpdate):
+                    event = serialize_can_source_state(item, telemetry_service.source_status())
+                else:  # pragma: no cover - raw broadcaster union is exhaustive
+                    raise AssertionError("unknown CAN explorer subscriber item")
                 await websocket.send_json(event.model_dump(mode="json"))
                 if isinstance(item, TelemetryServiceStateUpdate) and item.state in (
                     TelemetryServiceState.COMPLETED,

@@ -6,7 +6,8 @@ automotive telemetry system would use: ECUs, binary CAN frames, decoded signals,
 and a browser interface. The first reference vehicle is a 2010 BMW E90 335i with the N54
 engine.
 
-> **Current status:** Phase 0, Phases 1A–1C, Phases 2A–2C, Phase 3A, Phases 4A–4B, and Phases 5A–5B are complete. C++ provides
+> **Current status:** Phase 0, Phases 1A–1C, Phases 2A–2C, Phase 3A, Phases 4A–4B,
+> Phases 5A–5B, and Phase 6A are complete. C++ provides
 > deterministic vehicle simulation, independent simulated DME and DSC publication, globally ordered
 > synthetic Classic CAN, and in-memory transport. A versioned binary TCP loopback gateway carries
 > the combined raw bus live into
@@ -17,8 +18,10 @@ engine.
 > consumes those real contracts for live overview, charts, and catalog-driven signal inspection.
 > Optional raw-CAN recording produces portable, hashed session artifacts that replay through the
 > same DBC, telemetry engine, API, and dashboard. The Sessions page lists and starts those replays.
+> A read-only Raw CAN Explorer observes the same pre-decode live or replay frames with a bounded
+> buffer, DBC annotations, simulation-time rates, filters, and a dedicated raw WebSocket.
 > These definitions are not authentic BMW traffic. Database indexing, advanced playback controls,
-> Raw CAN Explorer, diagnostics, tuning, physical CAN, authentication, and simulator controls are
+> CAN transmission, diagnostics, tuning, physical CAN, authentication, and simulator controls are
 > not implemented.
 
 ## Architecture at a glance
@@ -26,10 +29,10 @@ engine.
 The planned data path is:
 
 ```text
-Vehicle model -> simulated ECUs -> binary CAN frames -> transport -> DBC decoder
-              -> TelemetryEngine -> TelemetryService -> REST/WebSocket -> Next.js dashboard
-                                   ^
-              raw session replay -+
+live gateway or raw session -> RawCanFrame
+                                  +-> SessionRecorder
+                                  +-> CanExplorer -> raw REST/WebSocket -> CAN page
+                                  +-> DBC -> TelemetryEngine -> telemetry REST/WebSocket -> dashboard
 ```
 
 CAN is the required source-of-truth boundary for future frontend telemetry; the simulator will not
@@ -125,9 +128,9 @@ npm run dev
 
 Use either `npm install` for dependency setup/update or `npm ci` for a clean lockfile install. Copy
 `frontend/.env.example` to `frontend/.env.local` if the API is not on the documented local defaults.
-The development server is available at `http://localhost:3000` by default. Overview uses one shared
-browser WebSocket; Telemetry provides catalog-driven decoded-signal inspection. Neither page uses
-mock telemetry.
+The development server is available at `http://localhost:3000` by default. Overview and Telemetry
+use one shared decoded WebSocket. `/can` mounts a separate page-scoped raw WebSocket and bounded CAN
+inspection state. No page uses mock telemetry.
 
 ## Live telemetry API
 
@@ -169,9 +172,17 @@ default. Set `TUNEROS_SESSION_ROOT` or pass `--session-root` to change it. Repla
 python -m tuneros.api --replay-session <session-uuid>
 ```
 
-Replay remains unpaced and begins after a telemetry WebSocket subscriber attaches. It regenerates
+Replay remains unpaced and begins after either telemetry or raw-CAN WebSocket initialization. It regenerates
 decoded telemetry from the exact raw frames; no decoded snapshot is stored as canonical session
 data. See [Session recording and replay](docs/SESSIONS.md).
+
+## Raw CAN Explorer
+
+Open `http://localhost:3000/can` during a live or replay source. The read-only page shows retained
+raw frames, exact DLC/payload bytes, authoritative DBC annotations and decoded engineering values,
+per-ID expected/observed rates, filters, and presentation-only Freeze View. The backend retains
+4,096 frames; the browser retains 1,000 and renders at most 500. Unknown IDs and decode errors remain
+visible as raw evidence. See [Raw CAN Explorer](docs/CAN_EXPLORER.md).
 
 ## PostgreSQL
 
@@ -200,6 +211,7 @@ database.
 - [Vehicle model specification](docs/VEHICLE_MODEL.md)
 - [Simulation contracts](docs/SIMULATION_CONTRACTS.md)
 - [CAN design](docs/CAN_DESIGN.md)
+- [Raw CAN Explorer](docs/CAN_EXPLORER.md)
 - [Telemetry contracts](docs/TELEMETRY.md)
 - [Telemetry API](docs/API.md)
 - [Frontend dashboard](docs/FRONTEND.md)

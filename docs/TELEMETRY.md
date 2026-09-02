@@ -12,8 +12,8 @@ RawCanFrame -> TunerOsDbcDecoder -> DecodedCanFrame -> TelemetryEngine
 ```
 
 The engine never accepts C++ simulator types, `VehicleState`, raw CAN, sockets, or `canmatrix`
-objects. Raw frames remain independently available upstream for the implemented session recorder
-and a future CAN explorer.
+objects. Raw frames remain independently available upstream for the session recorder and Phase 6A
+CAN Explorer.
 The domain engine contains no API, WebSocket, persistence, diagnostics, derived analytics, or
 presentation conversion.
 
@@ -144,3 +144,7 @@ diagnostics, thresholds, fault injection, derived horsepower/torque/boost/accele
 aliases, authentication, and physical CAN. Phase 5B adds raw recording and deterministic replay
 around this core without changing its decoded-frame ingestion contract. See
 [Session recording and replay](SESSIONS.md).
+
+Phase 6A also leaves this contract unchanged. `CanExplorer` observes each source `RawCanFrame`
+before decoder/engine ingestion and uses a separate REST/WebSocket representation; raw bytes never
+enter `TelemetryEngine` or `SignalSample`. See [Raw CAN Explorer](CAN_EXPLORER.md).

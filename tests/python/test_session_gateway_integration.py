@@ -66,7 +66,7 @@ def test_real_city_recording_round_trip_and_telemetry_replay_equivalence(tmp_pat
             "--step-us",
             "10000",
             "--duration-us",
-            "6000000",
+            "105000000",
         ],
         cwd=_REPOSITORY_ROOT,
         stdout=subprocess.PIPE,
@@ -95,6 +95,7 @@ def test_real_city_recording_round_trip_and_telemetry_replay_equivalence(tmp_pat
             definition.key: service.history(definition.key)
             for definition in service.catalog.definitions
         }
+        live_can_snapshot = service.can_snapshot()
         service.stop()
 
         assert process.wait(timeout=10) == 0, process.stderr.read()
@@ -108,10 +109,83 @@ def test_real_city_recording_round_trip_and_telemetry_replay_equivalence(tmp_pat
     replay = replay_session(reader)
 
     assert replayed_frames == recorder.observed
-    assert len(replayed_frames) == reader.manifest.frame_count == 1_565
+    assert len(replayed_frames) == reader.manifest.frame_count == 27_305
     assert replay.snapshot == live_snapshot
     assert replay.statistics == live_statistics
-    assert replay.statistics.total_signal_updates == 5_357
+    assert replay.statistics.total_signal_updates == 93_467
+    assert replay.explorer.snapshot() == live_can_snapshot
+    assert {
+        item.arbitration_id: item.total_frame_count for item in replay.explorer.message_statistics()
+    } == {
+        0x500: 10_501,
+        0x501: 5_251,
+        0x502: 1_051,
+        0x520: 5_251,
+        0x521: 5_251,
+    }
     for key, history in live_histories.items():
         assert replay.engine.history(key) == history
-    assert (reader.artifact_path / "frames.bin").stat().st_size == 8 + 1_565 * 19
+    assert replay.explorer.statistics().retained_frame_count == 4_096
+    assert (reader.artifact_path / "frames.bin").stat().st_size == 8 + 27_305 * 19
+
+
+def test_real_one_second_can_explorer_counts_and_simulation_time_rates() -> None:
+    process = subprocess.Popen(
+        [
+            str(_gateway_executable()),
+            "--scenario",
+            "city",
+            "--port",
+            "0",
+            "--step-us",
+            "10000",
+            "--duration-us",
+            "1000000",
+        ],
+        cwd=_REPOSITORY_ROOT,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    assert process.stdout is not None
+    assert process.stderr is not None
+    readiness: queue.Queue[str] = queue.Queue()
+    threading.Thread(target=_readline, args=(process.stdout, readiness), daemon=True).start()
+
+    try:
+        port = int(readiness.get(timeout=10).strip().removeprefix("LISTENING "))
+        service = TelemetryService(TelemetryServiceConfig(gateway_port=port))
+        service.start()
+        assert service.wait_for_state(TelemetryServiceState.COMPLETED, timeout=10)
+        assert process.wait(timeout=10) == 0, process.stderr.read()
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait(timeout=5)
+
+    messages = {item.arbitration_id: item for item in service.can_message_statistics()}
+    assert service.can_statistics().total_frame_count == 265
+    assert {identifier: item.total_frame_count for identifier, item in messages.items()} == {
+        0x500: 101,
+        0x501: 51,
+        0x502: 11,
+        0x520: 51,
+        0x521: 51,
+    }
+    assert {identifier: item.observed_frequency_hz for identifier, item in messages.items()} == {
+        0x500: 100.0,
+        0x501: 50.0,
+        0x502: 10.0,
+        0x520: 50.0,
+        0x521: 50.0,
+    }
+    initial = service.can_frames(limit=5)
+    assert [item.raw_frame.arbitration_id for item in service.can_frames()[:5]] == [
+        0x500,
+        0x501,
+        0x502,
+        0x520,
+        0x521,
+    ]
+    assert initial[-1].sequence == 264
+    service.stop()
