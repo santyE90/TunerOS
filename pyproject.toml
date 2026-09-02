@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "tuneros"
 version = "0.1.0"
-description = "Python DBC decode boundary for the TunerOS automotive simulation platform"
+description = "Python CAN decode and telemetry core for the TunerOS automotive simulation platform"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

@@ -44,5 +44,12 @@ a dated superseding entry.
 | Derive four equal wheel speeds without adding `VehicleState` fields | Phase 3A has no independent wheel physics, so storing four redundant values would create unnecessary state and reset obligations. |
 | Collect ECU frames before shared-bus publication | DME and DSC independently return due frames; `VehicleNetworkPublisher` sorts the combined set by ascending arbitration ID, preventing call order from defining bus order. |
 | Use synthetic DSC range `0x520..0x52F` | It is distinct from synthetic DME range `0x500..0x50F`; current `0x520` and `0x521` layouts are TunerOS-defined, not BMW traffic. |
+| Begin telemetry at `DecodedCanFrame` | The telemetry domain receives authoritative decoded engineering observations and never reaches around CAN/DBC to `VehicleState` or simulator objects. |
+| Wrap DBC metadata in immutable TunerOS models | Transmitter, unit, and cycle time remain authoritative without exposing `canmatrix` as an application-domain dependency. |
+| Key telemetry by message and signal name | `SignalKey(message_name, signal_name)` remains semantic and unique if different ECUs later publish identically named signals; CAN ID remains provenance. |
+| Reject backward live telemetry timestamps | Equal simulation timestamps and duplicates preserve bus arrival order, while older frames fail explicitly instead of being silently sorted. |
+| Bound history by per-engine sample count | A default capacity of 256 keeps memory finite while retaining every update until oldest-first eviction; no resampling occurs. |
+| Define freshness as at most two DBC periods old | Simulation time and authoritative DBC cycle time provide deterministic fresh/stale semantics without wall clocks or diagnostic quality scores. |
+| Keep Phase 4A in memory and non-derived | Resettable latest state, histories, snapshots, and statistics establish the domain contract; persistence and vehicle-level derived signals remain future concerns. |
 | Avoid unnecessary distributed or units infrastructure | Message brokers, cloud services, and a dimensional-analysis library add no Phase 0 engineering value. |
 | Defer application frameworks and schemas | FastAPI, ORMs, database migrations, and CAN libraries should follow concrete requirements. |

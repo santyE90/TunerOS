@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 from tuneros.can import RawCanGatewayClient, TunerOsDbcDecoder
+from tuneros.telemetry import SignalCatalog, SignalKey, TelemetryEngine
 
 _REPOSITORY_ROOT = Path(__file__).parents[2]
 
@@ -101,6 +102,60 @@ def test_cpp_city_streams_both_ecus_into_existing_python_dbc_decoder() -> None:
     assert raw_frames[-1].timestamp_microseconds == 6_000_000
 
     decoder = TunerOsDbcDecoder()
+    telemetry = TelemetryEngine(SignalCatalog(decoder.database_metadata))
+    decoded_frames = [decoder.decode(frame) for frame in raw_frames]
+    for decoded_frame in decoded_frames:
+        telemetry.ingest(decoded_frame)
+
+    telemetry_snapshot = telemetry.snapshot()
+    telemetry_statistics = telemetry.statistics()
+    rpm_key = SignalKey("DmeFastEngine", "EngineSpeedRpm")
+    speed_key = SignalKey("DscVehicleMotion", "VehicleSpeed")
+    gear_key = SignalKey("DscVehicleMotion", "CurrentGear")
+    coolant_key = SignalKey("DmeThermalElectrical", "CoolantTemperature")
+    wheel_keys = tuple(
+        SignalKey("DscWheelSpeeds", name)
+        for name in (
+            "FrontLeftWheelSpeed",
+            "FrontRightWheelSpeed",
+            "RearLeftWheelSpeed",
+            "RearRightWheelSpeed",
+        )
+    )
+    required_snapshot_keys = (
+        rpm_key,
+        SignalKey("DmeFastEngine", "ThrottlePosition"),
+        SignalKey("DmeFastEngine", "EngineLoad"),
+        SignalKey("DmeFastEngine", "EngineRunning"),
+        SignalKey("DmeAirLoad", "ManifoldPressureAbsolute"),
+        coolant_key,
+        SignalKey("DmeThermalElectrical", "BatteryVoltage"),
+        speed_key,
+        gear_key,
+        *wheel_keys,
+    )
+
+    assert telemetry_statistics.total_frames == len(raw_frames) == 1_565
+    assert telemetry_statistics.total_signal_updates == 5_357
+    assert telemetry_statistics.latest_timestamp_microseconds == 6_000_000
+    assert telemetry_statistics.last_frame_sequence == 1_564
+    assert telemetry_snapshot.observation_timestamp_microseconds == 6_000_000
+    assert telemetry_snapshot.latest(rpm_key).source_ecu == "TunerOsSimulatedDme"
+    assert telemetry_snapshot.latest(rpm_key).frame_sequence == 1_560
+    assert telemetry_snapshot.latest(speed_key).source_ecu == "TunerOsSimulatedDsc"
+    assert telemetry_snapshot.latest(speed_key).frame_sequence == 1_563
+    assert telemetry_snapshot.latest(gear_key) is not None
+    assert telemetry_snapshot.latest(coolant_key).frame_sequence == 1_562
+    assert all(telemetry_snapshot.latest(key) is not None for key in required_snapshot_keys)
+    assert len(telemetry.history(rpm_key)) == 256
+    assert len(telemetry.history(speed_key)) == 256
+    assert len(telemetry.history(coolant_key)) == 61
+    for wheel_key in wheel_keys:
+        assert telemetry_snapshot.latest(wheel_key).frame_sequence == 1_564
+        assert telemetry_snapshot.latest(wheel_key).value == pytest.approx(
+            telemetry_snapshot.latest(speed_key).value, abs=0.01 / 1_000_000
+        )
+
     initial = [decoder.decode(frame) for frame in raw_frames[:5]]
     assert initial[0].message_name == "DmeFastEngine"
     assert initial[0].signals["EngineSpeedRpm"] == 750.0

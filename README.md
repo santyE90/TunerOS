@@ -6,13 +6,15 @@ automotive telemetry system would use: ECUs, binary CAN frames, decoded signals,
 and a browser interface. The first reference vehicle is a 2010 BMW E90 335i with the N54
 engine.
 
-> **Current status:** Phase 0, Phases 1A–1C, Phases 2A–2C, and Phase 3A are complete. C++ provides
+> **Current status:** Phase 0, Phases 1A–1C, Phases 2A–2C, Phase 3A, and Phase 4A are complete. C++ provides
 > deterministic vehicle simulation, independent simulated DME and DSC publication, globally ordered
 > synthetic Classic CAN, and in-memory transport. A versioned binary TCP loopback gateway carries
 > the combined raw bus live into
-> Python, which validates and decodes them through the packaged authoritative synthetic DBC. These
-> definitions are not authentic BMW traffic. Physical CAN, telemetry services, persistence,
-> diagnostics, tuning, WebSockets, and dashboard features are not implemented.
+> Python, which validates and decodes them through the packaged authoritative synthetic DBC. A
+> synchronous telemetry core now maintains typed latest values, provenance, bounded histories,
+> immutable snapshots, statistics, and simulation-time freshness. These definitions are not
+> authentic BMW traffic. FastAPI, WebSockets, persistence, recording/replay, diagnostics, tuning,
+> physical CAN, and dashboard telemetry are not implemented.
 
 ## Architecture at a glance
 
@@ -31,7 +33,7 @@ PostgreSQL remain future presentation and persistence boundaries.
 ## Repository layout
 
 ```text
-backend/       Python raw-frame gateway client and DBC decoder; future backend services
+backend/       Python gateway, DBC decoder, metadata, and deterministic telemetry core
 can/           C++ Classic CAN, simulated DME/DSC publication, shared bus, and loopback gateway
 frontend/      Minimal Next.js and TypeScript application
 shared/        Future language-neutral application contracts
@@ -140,5 +142,6 @@ database.
 - [Vehicle model specification](docs/VEHICLE_MODEL.md)
 - [Simulation contracts](docs/SIMULATION_CONTRACTS.md)
 - [CAN design](docs/CAN_DESIGN.md)
+- [Telemetry contracts](docs/TELEMETRY.md)
 - [Diagnostics direction](docs/DIAGNOSTICS.md)
 - [Architecture decisions](docs/DECISIONS.md)

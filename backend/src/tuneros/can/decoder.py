@@ -5,6 +5,7 @@ from importlib.resources import as_file, files
 import canmatrix
 import canmatrix.formats
 
+from tuneros.can.metadata import CanDatabaseMetadata, CanMessageMetadata, CanSignalMetadata
 from tuneros.can.models import DecodedCanFrame, RawCanFrame, SignalValue
 
 _DBC_RESOURCE = files("tuneros.can").joinpath("dbc", "tuneros_simulation.dbc")
@@ -32,6 +33,40 @@ class TunerOsDbcDecoder:
             raise RuntimeError("authoritative TunerOS DBC must contain exactly one CAN database")
         self._database = next(iter(databases.values()))
         self._frames_by_id = {frame.arbitration_id.id: frame for frame in self._database.frames}
+        self._database_metadata = CanDatabaseMetadata(
+            messages=tuple(
+                CanMessageMetadata(
+                    arbitration_id=frame.arbitration_id.id,
+                    message_name=frame.name,
+                    transmitter=self._single_transmitter(frame),
+                    cycle_time_microseconds=self._cycle_time_microseconds(frame),
+                    signals=tuple(
+                        CanSignalMetadata(signal_name=signal.name, unit=signal.unit or "")
+                        for signal in frame.signals
+                    ),
+                )
+                for frame in self._database.frames
+            )
+        )
+
+    @staticmethod
+    def _single_transmitter(frame) -> str:
+        if len(frame.transmitters) != 1:
+            raise RuntimeError(
+                f"{frame.name} must define exactly one authoritative synthetic transmitter"
+            )
+        return frame.transmitters[0]
+
+    @staticmethod
+    def _cycle_time_microseconds(frame) -> int:
+        cycle_time_milliseconds = frame.cycle_time
+        if cycle_time_milliseconds <= 0:
+            raise RuntimeError(f"{frame.name} must define a positive DBC cycle time")
+        return cycle_time_milliseconds * 1_000
+
+    @property
+    def database_metadata(self) -> CanDatabaseMetadata:
+        return self._database_metadata
 
     @property
     def supported_arbitration_ids(self) -> tuple[int, ...]:

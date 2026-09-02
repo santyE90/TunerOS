@@ -14,8 +14,9 @@ Status notation: **complete** is validated foundation; **planned** is not implem
 | 2C | Live Raw CAN Gateway | **Complete** |
 | 3A | Simulated DSC & Multi-ECU Shared Bus | **Complete** |
 | 3B | Richer ECU & Network Behavior | Planned |
-| 4 | Vehicle Network & Signal Expansion | Planned |
-| 5 | Telemetry Backend | Planned |
+| 4A | Telemetry Core & Signal Aggregation | **Complete** |
+| 4B | Live Telemetry Service/API | Planned |
+| 5 | Telemetry Persistence & Sessions | Planned |
 | 6 | Live Vehicle Dashboard | Planned |
 | 7 | CAN Explorer | Planned |
 | 8 | Drive Sessions & Replay | Planned |
@@ -64,10 +65,14 @@ Phase 3A implements that boundary with two observation-only DSC frames, equal ve
 speeds, independent integer-time ECU schedulers, global arbitration-ID sorting, combined exact
 reset/replay, authoritative DBC additions, and unchanged raw gateway framing.
 
-The recommended next step is a telemetry backend foundation rather than automatically adding another
-ECU. The bus, gateway, and DBC now demonstrate multi-ECU provenance; a canonical latest-signal
-aggregation layer would validate how decoded messages become application state while keeping APIs,
-WebSockets, persistence, diagnostics, and frontend work separately scoped.
+Phase 4A adds immutable DBC metadata views, stable semantic signal keys, typed/provenanced samples,
+latest state, bounded histories, deterministic frame sequences, simulation-time freshness, coherent
+snapshots, statistics, schema/order errors, exact reset replay, and live C++ gateway integration.
+
+The recommended next step is Phase 4B, a narrowly scoped live telemetry service around the gateway,
+decoder, catalog, and `TelemetryEngine`. REST snapshot/catalog endpoints and WebSocket updates can
+then consume an established domain contract while persistence, sessions, diagnostics, and frontend
+work remain deferred.
 
 Further ECU behavior, physical CAN, diagnostics, calibration behavior, and frontend product work
 remain later phases. A later phase begins only after its required contracts and authenticity

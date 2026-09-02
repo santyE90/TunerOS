@@ -9,7 +9,7 @@ VehicleProfile + InitialConditions + Scenario + Environment + SimulationClock
                          -> binary CAN frames
                          -> CAN transport
                          -> DBC decoder
-                         -> telemetry backend
+                         -> telemetry core
                          -> persistence / diagnostics / API
                          -> frontend
 ```
@@ -39,9 +39,10 @@ access, not a production telemetry path.
 
 - **C++20:** authoritative deterministic vehicle-side contracts and vehicle state evolution,
   application-level Classic CAN primitives, and simulated ECU publication.
-- **Python 3.12+:** synchronous live raw-CAN gateway input and authoritative DBC decoding into typed
-  engineering signals; future telemetry, diagnostics, persistence, and HTTP/WebSocket services begin
-  downstream of this boundary. Python does not define or access C++ `VehicleState`.
+- **Python 3.12+:** synchronous live raw-CAN input, authoritative DBC decoding, immutable CAN
+  metadata, and deterministic telemetry aggregation into latest state, bounded histories, freshness,
+  and snapshots. Future diagnostics, persistence, and HTTP/WebSocket services begin downstream.
+  Python does not define or access C++ `VehicleState`.
 - **TypeScript/Next.js:** operator-facing visualization and investigation workflows only.
 - **PostgreSQL:** future durable configuration, sessions, decoded telemetry, diagnostics, and
   analysis; currently local infrastructure only.
@@ -88,6 +89,10 @@ C++ process: VehicleSimulation -> DME + DSC -> ordered CanFrame set -> TcpCanTra
                    versioned binary TCP loopback raw-CAN boundary
                                                        |
 Python process: RawCanGatewayClient -> RawCanFrame -> TunerOsDbcDecoder -> DecodedCanFrame
+                                                                    |
+                                                          TelemetryEngine
+                                                    /          |          \
+                                               latest      histories    snapshots
 ```
 
 The packaged DBC remains authoritative. Python receives only arbitration ID, meaningful payload
@@ -96,3 +101,14 @@ bytes, and integer simulation timestamp; it neither imports nor mirrors `Vehicle
 multi-ECU vehicle-network targets. The single-client server begins simulation after accept,
 preserving time-zero frames. No telemetry service, physical CAN, broker, persistence, or frontend
 path is added.
+
+## Telemetry boundary
+
+Phase 4A begins exclusively at `DecodedCanFrame`. `TunerOsDbcDecoder` exposes immutable
+library-independent DBC metadata, and `SignalCatalog` maps it into canonical semantic keys and
+provenance. `TelemetryEngine` synchronously preserves frame arrival order, rejects backward
+simulation timestamps, updates all signals from one frame atomically, and stores only latest samples,
+bounded per-signal histories, and small statistics.
+
+Raw CAN remains available before decode for a future CAN explorer or recorder. Telemetry never
+retains raw bytes and never accesses `VehicleState`. See [Telemetry contracts](TELEMETRY.md).

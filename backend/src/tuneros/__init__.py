@@ -1,4 +1,4 @@
-"""TunerOS Python CAN-decode boundary and future backend package."""
+"""TunerOS Python CAN-decode and deterministic telemetry-domain package."""
 
 from tuneros.project import PROJECT_NAME
 

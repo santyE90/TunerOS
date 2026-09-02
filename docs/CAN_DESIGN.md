@@ -89,6 +89,11 @@ constants necessary to produce bytes. Python does not repeat those layouts in pr
 contract tests compare DBC metadata and independently calculated wire vectors against the committed
 C++ format.
 
+Phase 4A exposes transmitter, unit, signal, message, arbitration-ID, and cycle-time metadata through
+immutable TunerOS-owned Python models. Telemetry consumers do not access `canmatrix` objects or
+duplicate ID/source/unit/period tables. This metadata exposure does not change any DBC definition or
+decode behavior.
+
 `RawCanFrame` accepts one standard arbitration ID, `bytes` payload of up to eight bytes, and a
 non-negative integer simulation timestamp. `TunerOsDbcDecoder` consumes only this raw contract and
 returns `DecodedCanFrame` with ID, stable DBC message name, unchanged timestamp, and an immutable
