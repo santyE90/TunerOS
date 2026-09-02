@@ -1,4 +1,4 @@
-VERSION "TunerOS synthetic simulation CAN database 1.0"
+VERSION "TunerOS synthetic simulation CAN database 1.1"
 
 NS_ :
     NS_DESC_
@@ -8,7 +8,7 @@ NS_ :
 
 BS_:
 
-BU_: TunerOsSimulatedDme
+BU_: TunerOsSimulatedDme TunerOsSimulatedDsc
 
 BO_ 1280 DmeFastEngine: 5 TunerOsSimulatedDme
  SG_ EngineSpeedRpm : 0|16@1+ (0.25,0) [0|16383.75] "rpm" Vector__XXX
@@ -27,14 +27,29 @@ BO_ 1282 DmeThermalElectrical: 7 TunerOsSimulatedDme
  SG_ IntakeAirTemperature : 32|16@1+ (0.1,-100) [-100|6453.5] "degC" Vector__XXX
  SG_ BatteryVoltage : 48|8@1+ (0.1,0) [0|25.5] "V" Vector__XXX
 
+BO_ 1312 DscVehicleMotion: 3 TunerOsSimulatedDsc
+ SG_ VehicleSpeed : 0|16@1+ (0.01,0) [0|655.35] "m/s" Vector__XXX
+ SG_ CurrentGear : 16|8@1+ (1,0) [0|6] "gear" Vector__XXX
+
+BO_ 1313 DscWheelSpeeds: 8 TunerOsSimulatedDsc
+ SG_ FrontLeftWheelSpeed : 0|16@1+ (0.01,0) [0|655.35] "m/s" Vector__XXX
+ SG_ FrontRightWheelSpeed : 16|16@1+ (0.01,0) [0|655.35] "m/s" Vector__XXX
+ SG_ RearLeftWheelSpeed : 32|16@1+ (0.01,0) [0|655.35] "m/s" Vector__XXX
+ SG_ RearRightWheelSpeed : 48|16@1+ (0.01,0) [0|655.35] "m/s" Vector__XXX
+
 CM_ "TunerOS synthetic simulation CAN database. Not BMW, E90, N54, PT-CAN, captured, or reverse-engineered OEM data.";
 CM_ BU_ TunerOsSimulatedDme "TunerOS simulated DME publisher; not BMW firmware.";
+CM_ BU_ TunerOsSimulatedDsc "TunerOS simulated DSC publisher; no ABS, traction, or stability control behavior.";
 CM_ BO_ 1280 "Synthetic 100 Hz fast-engine publication.";
 CM_ BO_ 1281 "Synthetic 50 Hz air/load publication.";
 CM_ BO_ 1282 "Synthetic 10 Hz thermal/electrical publication.";
+CM_ BO_ 1312 "Synthetic 50 Hz vehicle-motion publication; not authentic BMW DSC traffic.";
+CM_ BO_ 1313 "Synthetic 50 Hz equal wheel-speed publication; not authentic BMW DSC traffic.";
 
 BA_DEF_ BO_ "GenMsgCycleTime" INT 0 65535;
 BA_DEF_DEF_ "GenMsgCycleTime" 0;
 BA_ "GenMsgCycleTime" BO_ 1280 10;
 BA_ "GenMsgCycleTime" BO_ 1281 20;
 BA_ "GenMsgCycleTime" BO_ 1282 100;
+BA_ "GenMsgCycleTime" BO_ 1312 20;
+BA_ "GenMsgCycleTime" BO_ 1313 20;

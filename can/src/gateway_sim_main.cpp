@@ -9,7 +9,7 @@
 
 #include "tuneros/canbus/gateway_protocol.hpp"
 #include "tuneros/canbus/tcp_gateway.hpp"
-#include "tuneros/ecu/simulated_dme.hpp"
+#include "tuneros/ecu/vehicle_network_simulation.hpp"
 #include "tuneros/simulator/simulation.hpp"
 
 namespace {
@@ -98,15 +98,15 @@ int main(int argument_count, char** arguments) {
   try {
     const auto options = parse_options(argument_count, arguments);
     auto simulation = tuneros::simulator::VehicleSimulation{make_configuration(options)};
-    tuneros::ecu::SimulatedDme dme;
+    tuneros::ecu::VehicleNetworkPublisher network;
     tuneros::canbus::TcpCanServer server{options.port};
 
     std::cout << "LISTENING " << server.port() << '\n' << std::flush;
     auto transport = server.accept_client();
 
-    dme.observe_and_publish(simulation.state(), transport);
+    network.observe_and_publish(simulation.state(), transport);
     while (simulation.tick()) {
-      dme.observe_and_publish(simulation.state(), transport);
+      network.observe_and_publish(simulation.state(), transport);
     }
     return 0;
   } catch (const std::exception& error) {

@@ -16,14 +16,18 @@ def _load_database():
 def test_authoritative_dbc_message_contract() -> None:
     database = _load_database()
     expected = {
-        0x500: ("DmeFastEngine", 5, 10),
-        0x501: ("DmeAirLoad", 4, 20),
-        0x502: ("DmeThermalElectrical", 7, 100),
+        0x500: ("DmeFastEngine", 5, 10, ["TunerOsSimulatedDme"]),
+        0x501: ("DmeAirLoad", 4, 20, ["TunerOsSimulatedDme"]),
+        0x502: ("DmeThermalElectrical", 7, 100, ["TunerOsSimulatedDme"]),
+        0x520: ("DscVehicleMotion", 3, 20, ["TunerOsSimulatedDsc"]),
+        0x521: ("DscWheelSpeeds", 8, 20, ["TunerOsSimulatedDsc"]),
     }
 
-    assert len(database.frames) == 3
+    assert len(database.frames) == 5
     for frame in database.frames:
-        assert (frame.name, frame.size, frame.cycle_time) == expected[frame.arbitration_id.id]
+        assert (frame.name, frame.size, frame.cycle_time, frame.transmitters) == expected[
+            frame.arbitration_id.id
+        ]
         assert not frame.arbitration_id.extended
 
 
@@ -70,6 +74,16 @@ def test_authoritative_dbc_signal_contract() -> None:
             "OilTemperature": (16, 16, Decimal("0.1"), Decimal("-100"), "degC"),
             "IntakeAirTemperature": (32, 16, Decimal("0.1"), Decimal("-100"), "degC"),
             "BatteryVoltage": (48, 8, Decimal("0.1"), Decimal("0"), "V"),
+        },
+        0x520: {
+            "VehicleSpeed": (0, 16, Decimal("0.01"), Decimal("0"), "m/s"),
+            "CurrentGear": (16, 8, Decimal("1"), Decimal("0"), "gear"),
+        },
+        0x521: {
+            "FrontLeftWheelSpeed": (0, 16, Decimal("0.01"), Decimal("0"), "m/s"),
+            "FrontRightWheelSpeed": (16, 16, Decimal("0.01"), Decimal("0"), "m/s"),
+            "RearLeftWheelSpeed": (32, 16, Decimal("0.01"), Decimal("0"), "m/s"),
+            "RearRightWheelSpeed": (48, 16, Decimal("0.01"), Decimal("0"), "m/s"),
         },
     }
 

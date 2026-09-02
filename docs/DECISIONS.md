@@ -40,5 +40,9 @@ a dated superseding entry.
 | Use a versioned header plus fixed binary gateway records | `TNCR` version 1 and 19-byte records handle arbitrary TCP segmentation without JSON, native struct layout, or per-frame magic. |
 | Keep raw CAN as the live process boundary | C++ sends ID, DLC/payload, and authoritative simulation time; Python constructs the existing `RawCanFrame` and uses the unchanged DBC decoder. |
 | Keep the Phase 2C gateway synchronous and unpaced | One client and blocking writes provide a small lossless bridge; wall time, reconnect/replay, multi-client buffering, and brokers add no current value. |
+| Make simulated DSC the synthetic vehicle/wheel-speed publisher | Vehicle speed was intentionally omitted from DME; DSC provides a coherent observation/publication boundary without stability-control algorithms. |
+| Derive four equal wheel speeds without adding `VehicleState` fields | Phase 3A has no independent wheel physics, so storing four redundant values would create unnecessary state and reset obligations. |
+| Collect ECU frames before shared-bus publication | DME and DSC independently return due frames; `VehicleNetworkPublisher` sorts the combined set by ascending arbitration ID, preventing call order from defining bus order. |
+| Use synthetic DSC range `0x520..0x52F` | It is distinct from synthetic DME range `0x500..0x50F`; current `0x520` and `0x521` layouts are TunerOS-defined, not BMW traffic. |
 | Avoid unnecessary distributed or units infrastructure | Message brokers, cloud services, and a dimensional-analysis library add no Phase 0 engineering value. |
 | Defer application frameworks and schemas | FastAPI, ORMs, database migrations, and CAN libraries should follow concrete requirements. |

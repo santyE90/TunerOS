@@ -6,9 +6,10 @@ automotive telemetry system would use: ECUs, binary CAN frames, decoded signals,
 and a browser interface. The first reference vehicle is a 2010 BMW E90 335i with the N54
 engine.
 
-> **Current status:** Phase 0, Phases 1A–1C, and Phases 2A–2C are complete. C++ provides
-> deterministic vehicle simulation, simulated DME publication, synthetic binary Classic CAN, and
-> in-memory transport. A versioned binary TCP loopback gateway carries those raw frames live into
+> **Current status:** Phase 0, Phases 1A–1C, Phases 2A–2C, and Phase 3A are complete. C++ provides
+> deterministic vehicle simulation, independent simulated DME and DSC publication, globally ordered
+> synthetic Classic CAN, and in-memory transport. A versioned binary TCP loopback gateway carries
+> the combined raw bus live into
 > Python, which validates and decodes them through the packaged authoritative synthetic DBC. These
 > definitions are not authentic BMW traffic. Physical CAN, telemetry services, persistence,
 > diagnostics, tuning, WebSockets, and dashboard features are not implemented.
@@ -31,7 +32,7 @@ PostgreSQL remain future presentation and persistence boundaries.
 
 ```text
 backend/       Python raw-frame gateway client and DBC decoder; future backend services
-can/           C++ Classic CAN, simulated DME publication, and loopback gateway
+can/           C++ Classic CAN, simulated DME/DSC publication, shared bus, and loopback gateway
 frontend/      Minimal Next.js and TypeScript application
 shared/        Future language-neutral application contracts
 simulator/     C++20 deterministic IDLE/COLD_START/WARMUP/CITY vehicle simulation
@@ -96,6 +97,8 @@ python -m tuneros.can.live_decode --port 45800
 Supported scenarios are `idle`, `cold-start`, `warmup`, and `city`; `--step-us` and `--duration-us`
 override run timing. The single-client server defaults to maximum speed, has no authentication or
 TLS, and binds only `127.0.0.1`. This is a local process gateway, not physical CAN or telemetry.
+The live output now includes synthetic DME messages `0x500–0x502` and simulated DSC motion/wheel
+messages `0x520–0x521`; none are authentic BMW CAN definitions.
 
 ## Frontend setup and checks
 

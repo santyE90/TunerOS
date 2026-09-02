@@ -27,19 +27,19 @@ def _readline(stream, result: queue.Queue[str]) -> None:
     result.put(stream.readline())
 
 
-def test_cpp_cold_start_streams_raw_can_into_existing_python_dbc_decoder() -> None:
+def test_cpp_city_streams_both_ecus_into_existing_python_dbc_decoder() -> None:
     executable = _gateway_executable()
     process = subprocess.Popen(
         [
             str(executable),
             "--scenario",
-            "cold-start",
+            "city",
             "--port",
             "0",
             "--step-us",
             "10000",
             "--duration-us",
-            "2000000",
+            "6000000",
         ],
         cwd=_REPOSITORY_ROOT,
         stdout=subprocess.PIPE,
@@ -68,48 +68,69 @@ def test_cpp_cold_start_streams_raw_can_into_existing_python_dbc_decoder() -> No
             process.kill()
             process.wait(timeout=5)
 
-    assert len(raw_frames) == 323
-    assert [frame.arbitration_id for frame in raw_frames[:3]] == [0x500, 0x501, 0x502]
-    assert [frame.timestamp_microseconds for frame in raw_frames[:3]] == [0, 0, 0]
-    assert [frame.payload.hex() for frame in raw_frames[:3]] == [
-        "0000000000",
-        "f5030000",
-        "b004b004b0047e",
+    assert len(raw_frames) == 1_565
+    assert [frame.arbitration_id for frame in raw_frames[:5]] == [
+        0x500,
+        0x501,
+        0x502,
+        0x520,
+        0x521,
+    ]
+    assert [frame.timestamp_microseconds for frame in raw_frames[:5]] == [0, 0, 0, 0, 0]
+    assert [frame.payload.hex() for frame in raw_frames[:5]] == [
+        "b80b0f2e01",
+        "9501001a",
+        "0e06dc05e2048e",
+        "000000",
+        "0000000000000000",
     ]
     expected_order = []
-    for timestamp in range(0, 2_000_001, 10_000):
+    for timestamp in range(0, 6_000_001, 10_000):
         expected_order.append((timestamp, 0x500, 5))
         if timestamp % 20_000 == 0:
             expected_order.append((timestamp, 0x501, 4))
         if timestamp % 100_000 == 0:
             expected_order.append((timestamp, 0x502, 7))
+        if timestamp % 20_000 == 0:
+            expected_order.append((timestamp, 0x520, 3))
+            expected_order.append((timestamp, 0x521, 8))
     assert [
         (frame.timestamp_microseconds, frame.arbitration_id, frame.payload_length)
         for frame in raw_frames
     ] == expected_order
-    assert raw_frames[-1].timestamp_microseconds == 2_000_000
+    assert raw_frames[-1].timestamp_microseconds == 6_000_000
 
     decoder = TunerOsDbcDecoder()
-    initial = [decoder.decode(frame) for frame in raw_frames[:3]]
+    initial = [decoder.decode(frame) for frame in raw_frames[:5]]
     assert initial[0].message_name == "DmeFastEngine"
-    assert initial[0].signals["EngineSpeedRpm"] == 0.0
-    assert initial[0].signals["EngineRunning"] is False
+    assert initial[0].signals["EngineSpeedRpm"] == 750.0
+    assert initial[0].signals["EngineRunning"] is True
+    assert initial[3].message_name == "DscVehicleMotion"
+    assert initial[3].signals["VehicleSpeed"] == 0.0
+    assert initial[4].message_name == "DscWheelSpeeds"
 
-    start_frame = next(
+    moving_motion = next(
         frame
         for frame in raw_frames
-        if frame.arbitration_id == 0x500 and frame.timestamp_microseconds == 1_000_000
+        if frame.arbitration_id == 0x520 and frame.timestamp_microseconds == 6_000_000
     )
-    later_frame = next(
+    moving_wheels = next(
         frame
         for frame in raw_frames
-        if frame.arbitration_id == 0x500 and frame.timestamp_microseconds == 2_000_000
+        if frame.arbitration_id == 0x521 and frame.timestamp_microseconds == 6_000_000
     )
-    decoded_start = decoder.decode(start_frame)
-    decoded_later = decoder.decode(later_frame)
-    assert decoded_start.signals["EngineRunning"] is True
-    assert decoded_start.signals["EngineSpeedRpm"] > 0.0
-    assert decoded_later.signals["EngineSpeedRpm"] > decoded_start.signals["EngineSpeedRpm"]
+    decoded_motion = decoder.decode(moving_motion)
+    decoded_wheels = decoder.decode(moving_wheels)
+    assert decoded_motion.signals["VehicleSpeed"] > 0.0
+    for signal in (
+        "FrontLeftWheelSpeed",
+        "FrontRightWheelSpeed",
+        "RearLeftWheelSpeed",
+        "RearRightWheelSpeed",
+    ):
+        assert decoded_wheels.signals[signal] == pytest.approx(
+            decoded_motion.signals["VehicleSpeed"], abs=0.01 / 1_000_000
+        )
 
 
 @pytest.mark.parametrize(

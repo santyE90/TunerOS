@@ -21,6 +21,12 @@ _RESOLUTIONS = {
     "OilTemperature": 0.1,
     "IntakeAirTemperature": 0.1,
     "BatteryVoltage": 0.1,
+    "VehicleSpeed": 0.01,
+    "CurrentGear": 1.0,
+    "FrontLeftWheelSpeed": 0.01,
+    "FrontRightWheelSpeed": 0.01,
+    "RearLeftWheelSpeed": 0.01,
+    "RearRightWheelSpeed": 0.01,
 }
 
 
@@ -57,10 +63,12 @@ def test_golden_wire_vectors_decode_to_quantized_engineering_values(
 
 
 def test_decoder_registry_and_unknown_id_policy(decoder: TunerOsDbcDecoder) -> None:
-    assert decoder.supported_arbitration_ids == (0x500, 0x501, 0x502)
+    assert decoder.supported_arbitration_ids == (0x500, 0x501, 0x502, 0x520, 0x521)
     assert decoder.supports(0x500)
     assert not decoder.supports(0x600)
     assert decoder.message_name(0x502) == "DmeThermalElectrical"
+    assert decoder.message_name(0x520) == "DscVehicleMotion"
+    assert decoder.message_name(0x521) == "DscWheelSpeeds"
 
     with pytest.raises(UnknownCanFrameError, match="0x600"):
         decoder.decode(RawCanFrame(0x600, b"\x00", 1))
@@ -68,14 +76,17 @@ def test_decoder_registry_and_unknown_id_policy(decoder: TunerOsDbcDecoder) -> N
         decoder.message_name(0x600)
 
 
-@pytest.mark.parametrize("arbitration_id,dlc", [(0x500, 5), (0x501, 4), (0x502, 7)])
+@pytest.mark.parametrize(
+    "arbitration_id,dlc", [(0x500, 5), (0x501, 4), (0x502, 7), (0x520, 3), (0x521, 8)]
+)
 def test_known_frames_require_exact_dlc(
     decoder: TunerOsDbcDecoder, arbitration_id: int, dlc: int
 ) -> None:
     with pytest.raises(MalformedCanFrameError, match="requires DLC"):
         decoder.decode(RawCanFrame(arbitration_id, bytes(dlc - 1), 0))
-    with pytest.raises(MalformedCanFrameError, match="requires DLC"):
-        decoder.decode(RawCanFrame(arbitration_id, bytes(dlc + 1), 0))
+    if dlc < 8:
+        with pytest.raises(MalformedCanFrameError, match="requires DLC"):
+            decoder.decode(RawCanFrame(arbitration_id, bytes(dlc + 1), 0))
 
 
 def test_little_endian_order_is_observable(decoder: TunerOsDbcDecoder) -> None:
@@ -141,3 +152,34 @@ def test_cold_start_samples_show_engine_and_voltage_transition(
     assert after_fast.signals["EngineRunning"] is True
     assert after_fast.signals["EngineSpeedRpm"] > 0.0
     assert after_thermal.signals["BatteryVoltage"] > before_thermal.signals["BatteryVoltage"]
+
+
+def test_dsc_golden_samples_preserve_speed_quantization_and_wheel_consistency(
+    decoder: TunerOsDbcDecoder,
+) -> None:
+    vectors = {vector["name"]: vector for vector in _golden_vectors()}
+
+    def decode_named(name: str):
+        vector = vectors[name]
+        return decoder.decode(
+            RawCanFrame(
+                vector["arbitration_id"],
+                bytes.fromhex(vector["payload_hex"]),
+                vector["timestamp_microseconds"],
+            )
+        )
+
+    for prefix in ("dsc_zero", "dsc_representative", "dsc_higher"):
+        motion = decode_named(f"{prefix}_motion")
+        wheels = decode_named(f"{prefix}_wheels")
+        assert motion.message_name == "DscVehicleMotion"
+        assert wheels.message_name == "DscWheelSpeeds"
+        for signal in (
+            "FrontLeftWheelSpeed",
+            "FrontRightWheelSpeed",
+            "RearLeftWheelSpeed",
+            "RearRightWheelSpeed",
+        ):
+            assert wheels.signals[signal] == pytest.approx(
+                motion.signals["VehicleSpeed"], abs=0.01 / 1_000_000
+            )

@@ -59,26 +59,31 @@ reference profile factory, explicit initial conditions/environment, stateless sc
 IDLE/COLD_START/WARMUP/CITY, and minimal deterministic vehicle response. CITY adds only synthetic
 longitudinal speed, scenario-controlled manual gear selection, and speed/gear/RPM coupling. It is not
 a full drivetrain or vehicle-physics model. Phase 2A adds a read-only simulated DME publication
-boundary and synthetic binary CAN frames without changing vehicle evolution.
+boundary and synthetic binary CAN frames without changing vehicle evolution. Phase 3A adds an
+independent read-only simulated DSC that derives equal wheel speeds from canonical vehicle speed;
+it adds no redundant `VehicleState` fields or stability-control behavior.
 
 ## Transport abstraction
 
 `tuneros_can` defines a generic Classic CAN frame plus synchronous transport contract without a
 simulator dependency. Its Phase 2A `InMemoryTransport` is deterministic FIFO storage with no thread,
 socket, latency, or arbitration simulation. `tuneros_dme` depends on both `tuneros_can` and
-`tuneros_simulator`; the simulator does not depend on CAN, avoiding a cycle and preserving standalone
-Phase 1 use. Later adapters may target SocketCAN or physical hardware without changing vehicle
-evolution or DME packing.
+`tuneros_simulator`; `tuneros_dsc` has the same one-way dependencies, and
+`tuneros_vehicle_network` composes both. The simulator does not depend on CAN, avoiding cycles and
+preserving standalone Phase 1 use. Later adapters may target physical hardware without changing
+vehicle evolution or ECU packing.
 
-`VehicleNetworkSimulation` coordinates vehicle ticks, read-only DME observation, publication, and
-network reset. It does not expose a vehicle-to-telemetry shortcut.
+`VehicleNetworkPublisher` asks each ECU for due frames, combines them, sorts by ascending arbitration
+ID, and sends through one shared transport. `VehicleNetworkSimulation` coordinates that publisher
+with vehicle ticks, in-memory transport, and exact reset/replay. DME and DSC do not know about each
+other or consume one another's frames. No vehicle-to-telemetry shortcut exists.
 
 ## Raw CAN process and Python decode boundary
 
 Phase 2C makes raw CAN the live language/process boundary:
 
 ```text
-C++ process: VehicleSimulation -> SimulatedDme -> CanFrame -> TcpCanTransport
+C++ process: VehicleSimulation -> DME + DSC -> ordered CanFrame set -> TcpCanTransport
                                                        |
                    versioned binary TCP loopback raw-CAN boundary
                                                        |
@@ -87,6 +92,7 @@ Python process: RawCanGatewayClient -> RawCanFrame -> TunerOsDbcDecoder -> Decod
 
 The packaged DBC remains authoritative. Python receives only arbitration ID, meaningful payload
 bytes, and integer simulation timestamp; it neither imports nor mirrors `VehicleState`.
-`tuneros_can_gateway` depends only on generic CAN, while the executable composes gateway, DME, and
-simulator targets. The single-client server begins simulation after accept, preserving time-zero
-frames. No telemetry service, physical CAN, broker, persistence, or frontend path is added.
+`tuneros_can_gateway` depends only on generic CAN, while the executable composes the gateway and
+multi-ECU vehicle-network targets. The single-client server begins simulation after accept,
+preserving time-zero frames. No telemetry service, physical CAN, broker, persistence, or frontend
+path is added.

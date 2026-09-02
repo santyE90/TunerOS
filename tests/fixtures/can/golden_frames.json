@@ -152,6 +152,78 @@
         "IntakeAirTemperature": 25.0,
         "BatteryVoltage": 14.2
       }
+    },
+    {
+      "name": "dsc_zero_motion",
+      "scenario": "CITY",
+      "arbitration_id": 1312,
+      "payload_hex": "000000",
+      "timestamp_microseconds": 0,
+      "expected": {
+        "VehicleSpeed": 0.0,
+        "CurrentGear": 0.0
+      }
+    },
+    {
+      "name": "dsc_zero_wheels",
+      "scenario": "CITY",
+      "arbitration_id": 1313,
+      "payload_hex": "0000000000000000",
+      "timestamp_microseconds": 0,
+      "expected": {
+        "FrontLeftWheelSpeed": 0.0,
+        "FrontRightWheelSpeed": 0.0,
+        "RearLeftWheelSpeed": 0.0,
+        "RearRightWheelSpeed": 0.0
+      }
+    },
+    {
+      "name": "dsc_representative_motion",
+      "scenario": "CITY",
+      "arbitration_id": 1312,
+      "payload_hex": "d20403",
+      "timestamp_microseconds": 15000000,
+      "expected": {
+        "VehicleSpeed": 12.34,
+        "CurrentGear": 3.0
+      }
+    },
+    {
+      "name": "dsc_representative_wheels",
+      "scenario": "CITY",
+      "arbitration_id": 1313,
+      "payload_hex": "d204d204d204d204",
+      "timestamp_microseconds": 15000000,
+      "expected": {
+        "FrontLeftWheelSpeed": 12.34,
+        "FrontRightWheelSpeed": 12.34,
+        "RearLeftWheelSpeed": 12.34,
+        "RearRightWheelSpeed": 12.34
+      }
+    },
+    {
+      "name": "dsc_higher_motion",
+      "scenario": "CITY",
+      "arbitration_id": 1312,
+      "payload_hex": "070a04",
+      "timestamp_microseconds": 75000000,
+      "expected": {
+        "VehicleSpeed": 25.67,
+        "CurrentGear": 4.0
+      }
+    },
+    {
+      "name": "dsc_higher_wheels",
+      "scenario": "CITY",
+      "arbitration_id": 1313,
+      "payload_hex": "070a070a070a070a",
+      "timestamp_microseconds": 75000000,
+      "expected": {
+        "FrontLeftWheelSpeed": 25.67,
+        "FrontRightWheelSpeed": 25.67,
+        "RearLeftWheelSpeed": 25.67,
+        "RearRightWheelSpeed": 25.67
+      }
     }
   ]
 }

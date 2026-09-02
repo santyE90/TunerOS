@@ -12,7 +12,8 @@ Status notation: **complete** is validated foundation; **planned** is not implem
 | 2A | Virtual CAN Foundation & First DME Publication | **Complete** |
 | 2B | DBC & Decoding Layer | **Complete** |
 | 2C | Live Raw CAN Gateway | **Complete** |
-| 3 | ECU Systems Expansion | Planned |
+| 3A | Simulated DSC & Multi-ECU Shared Bus | **Complete** |
+| 3B | Richer ECU & Network Behavior | Planned |
 | 4 | Vehicle Network & Signal Expansion | Planned |
 | 5 | Telemetry Backend | Planned |
 | 6 | Live Vehicle Dashboard | Planned |
@@ -59,9 +60,14 @@ transport/server and simulation executable, Python raw-frame client, compact liv
 golden/stream tests, and an actual C++ to TCP to Python to DBC test. It preserves simulation
 timestamps, IDs, DLC, payload bytes, and stream order without a telemetry service or wall pacing.
 
-The recommended next step is Phase 3A: add the first simulated DSC publication, including synthetic
-vehicle/wheel-speed signals and multi-ECU shared-bus ordering. This extends the intended ECU/raw-CAN
-boundary before introducing higher-level telemetry services.
+Phase 3A implements that boundary with two observation-only DSC frames, equal vehicle-derived wheel
+speeds, independent integer-time ECU schedulers, global arbitration-ID sorting, combined exact
+reset/replay, authoritative DBC additions, and unchanged raw gateway framing.
+
+The recommended next step is a telemetry backend foundation rather than automatically adding another
+ECU. The bus, gateway, and DBC now demonstrate multi-ECU provenance; a canonical latest-signal
+aggregation layer would validate how decoded messages become application state while keeping APIs,
+WebSockets, persistence, diagnostics, and frontend work separately scoped.
 
 Further ECU behavior, physical CAN, diagnostics, calibration behavior, and frontend product work
 remain later phases. A later phase begins only after its required contracts and authenticity

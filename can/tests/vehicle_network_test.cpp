@@ -8,6 +8,7 @@
 
 #include "tuneros/canbus/frame.hpp"
 #include "tuneros/ecu/dme_frames.hpp"
+#include "tuneros/ecu/dsc_frames.hpp"
 #include "tuneros/ecu/simulated_dme.hpp"
 #include "tuneros/ecu/vehicle_network_simulation.hpp"
 #include "tuneros/simulator/simulation.hpp"
@@ -37,6 +38,11 @@ const canbus::CanFrame* find_frame(const std::vector<canbus::CanFrame>& frames, 
   return found == frames.end() ? nullptr : &*found;
 }
 
+std::uint16_t little_endian_u16(const canbus::CanFrame& frame, std::size_t offset = 0) {
+  return static_cast<std::uint16_t>(frame.payload[offset]) |
+         static_cast<std::uint16_t>(static_cast<std::uint16_t>(frame.payload[offset + 1]) << 8U);
+}
+
 bool has_ascending_same_timestamp_order(const std::vector<canbus::CanFrame>& frames) {
   for (std::size_t index = 1; index < frames.size(); ++index) {
     if (frames[index - 1].timestamp_microseconds == frames[index].timestamp_microseconds &&
@@ -52,8 +58,8 @@ bool test_exact_default_rates_and_ordering() {
   configuration.duration = simulator::SimulationDuration{1'000'000};
   ecu::VehicleNetworkSimulation network{configuration};
 
-  if (!expect(network.transport().size() == 3,
-              "Construction must publish all three initial snapshots at t=0")) {
+  if (!expect(network.transport().size() == 5,
+              "Construction must publish all five DME and DSC snapshots at t=0")) {
     return false;
   }
   network.run_to_completion();
@@ -65,8 +71,17 @@ bool test_exact_default_rates_and_ordering() {
                 "Inclusive one-second run must contain 51 air/load frames") &&
          expect(count_id(frames, ecu::kDmeThermalElectricalFrameId) == 11,
                 "Inclusive one-second run must contain 11 thermal/electrical frames") &&
-         expect(frames.size() == 163 && has_ascending_same_timestamp_order(frames),
-                "Same-timestamp frames must be ordered by ascending synthetic CAN ID") &&
+         expect(count_id(frames, ecu::kDscVehicleMotionFrameId) == 51,
+                "Inclusive one-second run must contain 51 DSC motion frames") &&
+         expect(count_id(frames, ecu::kDscWheelSpeedsFrameId) == 51,
+                "Inclusive one-second run must contain 51 DSC wheel-speed frames") &&
+         expect(frames.size() == 265 && has_ascending_same_timestamp_order(frames),
+                "Combined count and global same-timestamp CAN-ID order must be exact") &&
+         expect(std::vector<std::uint16_t>{frames[0].arbitration_id, frames[1].arbitration_id,
+                                           frames[2].arbitration_id, frames[3].arbitration_id,
+                                           frames[4].arbitration_id} ==
+                    std::vector<std::uint16_t>{0x500, 0x501, 0x502, 0x520, 0x521},
+                "The t=0 DME and DSC sequence must be globally ordered by CAN ID") &&
          expect(frames.front().timestamp_microseconds == 0 &&
                     frames.back().timestamp_microseconds == 1'000'000,
                 "Frame timestamps must span the inclusive simulation boundary exactly");
@@ -81,8 +96,11 @@ bool test_non_divisible_and_undersampled_steps() {
   auto frames = network.transport().drain();
   if (!expect(count_id(frames, ecu::kDmeFastEngineFrameId) == 71 &&
                   count_id(frames, ecu::kDmeAirLoadFrameId) == 53 &&
-                  count_id(frames, ecu::kDmeThermalElectricalFrameId) == 11,
-              "A 15 ms step must deterministically publish when due times are crossed")) {
+                  count_id(frames, ecu::kDmeThermalElectricalFrameId) == 11 &&
+                  count_id(frames, ecu::kDscVehicleMotionFrameId) == 53 &&
+                  count_id(frames, ecu::kDscWheelSpeedsFrameId) == 53 && frames.size() == 241 &&
+                  has_ascending_same_timestamp_order(frames),
+              "A 15 ms step must deterministically publish and globally order both ECUs")) {
     return false;
   }
   for (const auto& frame : frames) {
@@ -99,7 +117,9 @@ bool test_non_divisible_and_undersampled_steps() {
   frames = undersampled.transport().drain();
   return expect(count_id(frames, ecu::kDmeFastEngineFrameId) == 41 &&
                     count_id(frames, ecu::kDmeAirLoadFrameId) == 41 &&
-                    count_id(frames, ecu::kDmeThermalElectricalFrameId) == 11,
+                    count_id(frames, ecu::kDmeThermalElectricalFrameId) == 11 &&
+                    count_id(frames, ecu::kDscVehicleMotionFrameId) == 41 &&
+                    count_id(frames, ecu::kDscWheelSpeedsFrameId) == 41,
                 "A large step must emit at most one frame type per observed VehicleState");
 }
 
@@ -109,12 +129,19 @@ bool test_city_changes_binary_frames_and_replays() {
   network.run_to_completion();
   const auto& queued_first_run = network.transport().queued_frames();
   const std::vector<canbus::CanFrame> first_run(queued_first_run.begin(), queued_first_run.end());
+  if (!expect(first_run.size() == 27'305,
+              "Default CITY must produce the exact inclusive combined ECU frame count")) {
+    return false;
+  }
 
   const auto* initial_fast = find_frame(first_run, ecu::kDmeFastEngineFrameId, 0);
   const auto* initial_air = find_frame(first_run, ecu::kDmeAirLoadFrameId, 0);
   const auto* initial_thermal = find_frame(first_run, ecu::kDmeThermalElectricalFrameId, 0);
-  if (!expect(initial_fast != nullptr && initial_air != nullptr && initial_thermal != nullptr,
-              "CITY must publish all initial DME snapshots")) {
+  const auto* initial_motion = find_frame(first_run, ecu::kDscVehicleMotionFrameId, 0);
+  const auto* initial_wheels = find_frame(first_run, ecu::kDscWheelSpeedsFrameId, 0);
+  if (!expect(initial_fast != nullptr && initial_air != nullptr && initial_thermal != nullptr &&
+                  initial_motion != nullptr && initial_wheels != nullptr,
+              "CITY must publish all initial DME and DSC snapshots")) {
     return false;
   }
 
@@ -153,9 +180,46 @@ bool test_city_changes_binary_frames_and_replays() {
     return false;
   }
 
+  const bool motion_changed =
+      std::any_of(first_run.begin(), first_run.end(), [&](const auto& frame) {
+        return frame.arbitration_id == ecu::kDscVehicleMotionFrameId &&
+               frame.payload != initial_motion->payload;
+      });
+  const bool wheels_changed =
+      std::any_of(first_run.begin(), first_run.end(), [&](const auto& frame) {
+        return frame.arbitration_id == ecu::kDscWheelSpeedsFrameId &&
+               frame.payload != initial_wheels->payload;
+      });
+  const auto* intermediate_stop = find_frame(first_run, ecu::kDscVehicleMotionFrameId, 54'980'000);
+  const auto* final_stop = find_frame(first_run, ecu::kDscVehicleMotionFrameId, 105'000'000);
+  const auto* before_deceleration =
+      find_frame(first_run, ecu::kDscVehicleMotionFrameId, 32'000'000);
+  const auto* during_deceleration =
+      find_frame(first_run, ecu::kDscVehicleMotionFrameId, 44'000'000);
+  if (!expect(motion_changed && wheels_changed && intermediate_stop != nullptr &&
+                  intermediate_stop->payload[0] == 0 && intermediate_stop->payload[1] == 0 &&
+                  intermediate_stop->payload[2] == 0 && final_stop != nullptr &&
+                  final_stop->payload[0] == 0 && final_stop->payload[1] == 0 &&
+                  final_stop->payload[2] == 0 && before_deceleration != nullptr &&
+                  during_deceleration != nullptr &&
+                  little_endian_u16(*during_deceleration) < little_endian_u16(*before_deceleration),
+              "CITY DSC speed must rise, decline, and encode exact zero at both stops")) {
+    return false;
+  }
+
+  for (const auto& frame : first_run) {
+    if (frame.arbitration_id == ecu::kDscWheelSpeedsFrameId &&
+        !expect(frame.payload[0] == frame.payload[2] && frame.payload[0] == frame.payload[4] &&
+                    frame.payload[0] == frame.payload[6] && frame.payload[1] == frame.payload[3] &&
+                    frame.payload[1] == frame.payload[5] && frame.payload[1] == frame.payload[7],
+                "All four Phase 3A wheel speeds must have identical quantized bytes")) {
+      return false;
+    }
+  }
+
   network.reset();
-  if (!expect(network.transport().size() == 3,
-              "Network reset must clear old traffic and republish only the t=0 snapshots")) {
+  if (!expect(network.transport().size() == 5,
+              "Network reset must clear old traffic and republish all five t=0 snapshots")) {
     return false;
   }
   network.run_to_completion();
@@ -175,6 +239,11 @@ bool test_cold_start_publication() {
   const auto* started_fast = find_frame(frames, ecu::kDmeFastEngineFrameId, 1'000'000);
   const auto* initial_thermal = find_frame(frames, ecu::kDmeThermalElectricalFrameId, 0);
   const auto* later_thermal = find_frame(frames, ecu::kDmeThermalElectricalFrameId, 2'000'000);
+  const auto dsc_motion_count = count_id(frames, ecu::kDscVehicleMotionFrameId);
+  const bool dsc_is_stationary = std::all_of(frames.begin(), frames.end(), [](const auto& frame) {
+    return frame.arbitration_id != ecu::kDscVehicleMotionFrameId ||
+           (frame.payload[0] == 0 && frame.payload[1] == 0 && frame.payload[2] == 0);
+  });
   return expect(initial_fast != nullptr && initial_fast->payload[0] == 0 &&
                     initial_fast->payload[1] == 0 && initial_fast->payload[4] == 0,
                 "COLD_START must initially publish zero RPM and engine-off") &&
@@ -184,7 +253,9 @@ bool test_cold_start_publication() {
                 "COLD_START must publish running state and rising RPM at one second") &&
          expect(initial_thermal != nullptr && later_thermal != nullptr &&
                     initial_thermal->payload != later_thermal->payload,
-                "COLD_START electrical/thermal publication must evolve with vehicle state");
+                "COLD_START electrical/thermal publication must evolve with vehicle state") &&
+         expect(dsc_motion_count == 101 && dsc_is_stationary,
+                "COLD_START DSC must keep publishing zero-speed neutral motion at 50 Hz");
 }
 
 bool test_invalid_schedule_rejected() {
@@ -192,6 +263,14 @@ bool test_invalid_schedule_rejected() {
     [[maybe_unused]] const ecu::SimulatedDme invalid{
         ecu::DmePublicationSchedule{.fast_engine_period_microseconds = 0}};
     return expect(false, "A zero DME publication period must be rejected");
+  } catch (const std::invalid_argument&) {
+  }
+  try {
+    [[maybe_unused]] const ecu::VehicleNetworkSimulation invalid{
+        simulator::make_default_idle_run_configuration(),
+        {},
+        ecu::DscPublicationSchedule{.wheel_speeds_period_microseconds = 0}};
+    return expect(false, "A zero DSC network publication period must be rejected");
   } catch (const std::invalid_argument&) {
   }
   return true;

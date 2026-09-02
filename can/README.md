@@ -18,3 +18,9 @@ Phase 2C adds `tuneros_can_gateway`, a versioned fixed-record TCP loopback trans
 on generic CAN, plus `tuneros_gateway_sim`, which composes it with the simulator and DME. Python
 receives this stream through the existing raw-frame boundary before DBC decode. The gateway is
 single-client, blocking, unpaced, and local-development-only; it is not physical CAN or telemetry.
+
+Phase 3A adds an independent observation-only simulated DSC, two synthetic motion publications, and
+`VehicleNetworkPublisher`. DME and DSC collect due frames independently; the shared publisher sorts
+the combined set by arbitration ID before sending it through one transport. Wheel speeds are derived
+equally from canonical vehicle speed. No ABS, traction, braking, yaw control, faults, or diagnostics
+are modeled, and the Phase 2C gateway protocol is unchanged.

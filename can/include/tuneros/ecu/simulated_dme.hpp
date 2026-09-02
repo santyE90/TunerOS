@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <vector>
 
 #include "tuneros/canbus/transport.hpp"
 #include "tuneros/ecu/dme_frames.hpp"
@@ -23,6 +24,8 @@ class SimulatedDme {
 
   [[nodiscard]] const DmePublicationSchedule& schedule() const noexcept { return schedule_; }
 
+  [[nodiscard]] std::vector<canbus::CanFrame> collect_due_frames(
+      const simulator::VehicleState& state);
   void observe_and_publish(const simulator::VehicleState& state, canbus::CanTransport& transport);
   void reset() noexcept;
 
