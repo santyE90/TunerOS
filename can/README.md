@@ -1,5 +1,11 @@
 # CAN workspace
 
-This directory is reserved for the future transport, frame, and DBC boundary. Phase 1C contains
-no CAN identifiers, frames, signal definitions, or protocol implementation. See
-[`docs/CAN_DESIGN.md`](../docs/CAN_DESIGN.md) for the intended design and authenticity policy.
+Phase 2A implements the C++ application-level Classic CAN boundary here: canonical raw frames,
+`CanTransport`, deterministic `InMemoryTransport`, synthetic DME frame packing/scheduling, and the
+vehicle/network integration runner. The DME layouts and IDs are TunerOS synthetic definitions—not
+authentic BMW traffic.
+
+`tuneros_can` is independent of vehicle simulation. `tuneros_dme` depends on `tuneros_can` and
+`tuneros_simulator`, leaving `VehicleSimulation` usable without a network. DBC decoding, Python CAN,
+SocketCAN, physical adapters, telemetry, and persistence remain unimplemented. See
+[`docs/CAN_DESIGN.md`](../docs/CAN_DESIGN.md) for the authoritative layouts and scheduling contract.

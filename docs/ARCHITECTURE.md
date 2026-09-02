@@ -19,11 +19,11 @@ controller state, and publish selected information. Transport moves opaque frame
 assigns engineering meaning. Telemetry owns downstream observations and application history; the
 frontend consumes backend contracts.
 
-CAN will be the telemetry source of truth outside the vehicle/ECU simulation boundary. The backend
+CAN is the telemetry source of truth outside the vehicle/ECU simulation boundary. The backend
 and frontend must not read `VehicleState` directly, because doing so would hide the protocol,
-decoding, timing, and provenance boundaries TunerOS is meant to teach. Before CAN exists, Phase 1
-tests and simulator-only tooling may inspect `VehicleState`; this exception is temporary development
-access, not a future production path.
+decoding, timing, and provenance boundaries TunerOS is meant to teach. Tests and simulator-only
+tooling may inspect `VehicleState` to validate vehicle evolution and encoding; this is development
+access, not a production telemetry path.
 
 ## Engineering principles
 
@@ -37,8 +37,8 @@ access, not a future production path.
 
 ## Language responsibilities
 
-- **C++20:** authoritative deterministic vehicle-side contracts and vehicle state evolution.
-  Simulated ECU behavior remains future work.
+- **C++20:** authoritative deterministic vehicle-side contracts and vehicle state evolution,
+  application-level Classic CAN primitives, and simulated ECU publication.
 - **Python 3.12+:** future CAN adapters, decoding orchestration, telemetry ingestion, deterministic
   diagnostics, persistence, and HTTP/WebSocket services. It does not duplicate C++ `VehicleState`.
 - **TypeScript/Next.js:** operator-facing visualization and investigation workflows only.
@@ -57,11 +57,18 @@ scenario, determinism, and configuration contracts are in
 reference profile factory, explicit initial conditions/environment, stateless scenario schedules for
 IDLE/COLD_START/WARMUP/CITY, and minimal deterministic vehicle response. CITY adds only synthetic
 longitudinal speed, scenario-controlled manual gear selection, and speed/gear/RPM coupling. It is not
-a full drivetrain or vehicle-physics model. ECUs, CAN, telemetry, and diagnostics remain absent.
+a full drivetrain or vehicle-physics model. Phase 2A adds a read-only simulated DME publication
+boundary and synthetic binary CAN frames without changing vehicle evolution.
 
 ## Transport abstraction
 
-A future CAN transport interface will separate producers/consumers from the mechanism carrying a
-timestamped opaque frame. The first implementation can be in-process or Windows-friendly. Later
-adapters may target SocketCAN or physical CAN hardware without changing simulation, decoding, or
-application layers. Phase 1C does not design or implement this interface.
+`tuneros_can` defines a generic Classic CAN frame plus synchronous transport contract without a
+simulator dependency. Its Phase 2A `InMemoryTransport` is deterministic FIFO storage with no thread,
+socket, latency, or arbitration simulation. `tuneros_dme` depends on both `tuneros_can` and
+`tuneros_simulator`; the simulator does not depend on CAN, avoiding a cycle and preserving standalone
+Phase 1 use. Later adapters may target SocketCAN or physical hardware without changing vehicle
+evolution or DME packing.
+
+`VehicleNetworkSimulation` coordinates vehicle ticks, read-only DME observation, publication, and
+network reset. It does not expose a vehicle-to-telemetry shortcut. DBC decoding and all application
+layers remain unimplemented.

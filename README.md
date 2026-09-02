@@ -6,11 +6,11 @@ automotive telemetry system would use: ECUs, binary CAN frames, decoded signals,
 and a browser interface. The first reference vehicle is a 2010 BMW E90 335i with the N54
 engine.
 
-> **Current status:** Phase 0 and Phases 1A–1C are complete. The C++ simulator provides a
-> deterministic fixed-step clock, explicit environment and initial conditions, the reference
-> E90/N54 profile, stationary scenarios, and a simplified moving CITY scenario with synthetic
-> speed/gear/RPM coupling. ECU behavior, CAN/DBC, full vehicle physics, telemetry, diagnostics,
-> tuning, and product dashboard features are not implemented.
+> **Current status:** Phase 0, Phases 1A–1C, and Phase 2A are complete. The C++ implementation now
+> provides deterministic vehicle simulation, read-only simulated DME observation, three synthetic
+> binary Classic CAN publications, and an in-memory CAN transport. These definitions are TunerOS
+> synthetic—not authentic BMW traffic. DBC decoding, physical CAN, telemetry, diagnostics, tuning,
+> persistence, and product dashboard features are not implemented.
 
 ## Architecture at a glance
 
@@ -21,8 +21,8 @@ Vehicle model -> simulated ECUs -> binary CAN frames -> transport -> DBC decoder
               -> telemetry backend -> persistence / diagnostics / API -> frontend
 ```
 
-CAN will be the source of truth for frontend telemetry; the simulator will not bypass the frame and
-decode pipeline. C++ is reserved for lower-level simulation, Python for CAN/telemetry/diagnostics
+CAN is the required source-of-truth boundary for future frontend telemetry; the simulator will not
+bypass the frame and decode pipeline. C++ is reserved for lower-level simulation, Python for future CAN/telemetry/diagnostics
 services, TypeScript and Next.js for the UI, and PostgreSQL for durable data. These are boundaries,
 not implemented product features in this phase.
 
@@ -30,10 +30,10 @@ not implemented product features in this phase.
 
 ```text
 backend/       Minimal importable Python package; future backend services
-can/           Future CAN transport and DBC boundary
+can/           C++ Classic CAN contract, in-memory transport, and simulated DME publication
 frontend/      Minimal Next.js and TypeScript application
 shared/        Future language-neutral contracts and fixtures
-simulator/     C++20 deterministic IDLE/COLD_START/WARMUP/CITY simulation
+simulator/     C++20 deterministic IDLE/COLD_START/WARMUP/CITY vehicle simulation
 tests/python/  Python tests
 docs/          Product and engineering specifications
 .github/       Continuous integration
@@ -73,7 +73,7 @@ ctest --test-dir build/cpp -C Debug --output-on-failure
 Formatting is configured by `.clang-format`; when `clang-format` is installed, check it with:
 
 ```powershell
-clang-format --dry-run --Werror (rg --files simulator -g '*.hpp' -g '*.cpp')
+clang-format --dry-run --Werror (rg --files simulator can -g '*.hpp' -g '*.cpp')
 ```
 
 ## Frontend setup and checks

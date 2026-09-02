@@ -9,9 +9,10 @@ Status notation: **complete** is validated foundation; **planned** is not implem
 | 1A | Deterministic Simulation Core | **Complete** |
 | 1B | Initial Conditions & Thermal Scenario Expansion | **Complete** |
 | 1C | First Moving-Vehicle Scenario | **Complete** |
-| 2 | Virtual CAN Network | Planned |
-| 3 | ECU Systems | Planned |
-| 4 | DBC & Signal Layer | Planned |
+| 2A | Virtual CAN Foundation & First DME Publication | **Complete** |
+| 2B | DBC & Decoding Layer | Planned |
+| 3 | ECU Systems Expansion | Planned |
+| 4 | Vehicle Network & Signal Expansion | Planned |
 | 5 | Telemetry Backend | Planned |
 | 6 | Live Vehicle Dashboard | Planned |
 | 7 | CAN Explorer | Planned |
@@ -42,10 +43,15 @@ scenario-controlled forward gears, synthetic speed-to-RPM factors, two stops, an
 It remains a signal-generation model: clutch detail, torque curves, wheel physics, and boost are not
 modeled.
 
-The recommended next step is Phase 2 preparation: specify the first synthetic ECU publications, CAN
-frame contract, and virtual transport boundary before implementing them. The existing stationary and
-moving scenarios now provide enough deterministic source signals for that work.
+Phase 2A adds the canonical Classic CAN frame, standard-ID/DLC validation, deterministic FIFO
+transport, a read-only simulated DME, three explicitly synthetic binary signal layouts, timestamp-
+based 100/50/10 Hz publication, and an end-to-end vehicle/network runner. It does not implement DBC,
+physical CAN, telemetry, or scenario-specific DME behavior.
 
-CAN, ECU publication, diagnostics, calibration behavior, and frontend product work remain later
-phases. A later phase begins only after its required contracts and authenticity assumptions are
-documented and the preceding foundation remains testable.
+The recommended next step is Phase 2B: express the Phase 2A layouts in an authoritative DBC, decode
+raw frames back to engineering signals, and prove encode/decode agreement while preserving CAN as
+the only application telemetry boundary.
+
+Further ECU behavior, physical CAN, diagnostics, calibration behavior, and frontend product work
+remain later phases. A later phase begins only after its required contracts and authenticity
+assumptions are documented and the preceding foundation remains testable.

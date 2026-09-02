@@ -27,5 +27,10 @@ a dated superseding entry.
 | Use synthetic direct speed-to-RPM factors for Phase 1C | Direct per-gear factors make gear/RPM relationships obvious without implying verified BMW ratios, tire dimensions, clutch behavior, or torque multiplication. |
 | Treat CITY gear changes as scenario-controlled manual-driver choices | Speed thresholds select discrete gears for the six-speed manual reference profile. This is not an automatic transmission, EGS, or clutch simulation. |
 | Use a minimal longitudinal response instead of force balance | Accelerator-derived drive acceleration minus synthetic rolling and speed-dependent loss produces bounded signals without torque curves, mass, tires, or wheel physics. |
+| Separate `tuneros_can`, `tuneros_simulator`, and `tuneros_dme` targets | Generic frame/transport code has no simulator dependency; DME integration depends on both, preserving an acyclic graph and standalone vehicle simulation. |
+| Use synthetic standard-ID DME frames in reserved range `0x500..0x50F` | Fixed 11-bit IDs, byte-aligned little-endian layouts, and explicit scaling create a clear future DBC contract without implying BMW authenticity. |
+| Publish initial ECU snapshots at simulation time zero | Consumers receive a deterministic initial state; inclusive run-end publication makes counts and replay behavior explicit. |
+| Schedule DME frames with integer next-due timestamps | Timestamp crossing supports non-divisible simulation steps without wall time or interpolation; at most one frame type per observed state avoids duplicate samples. |
+| Order simultaneous frames by ascending arbitration ID | It is deterministic and resembles CAN priority ordering without simulating arbitration delay. |
 | Avoid unnecessary distributed or units infrastructure | Message brokers, cloud services, and a dimensional-analysis library add no Phase 0 engineering value. |
 | Defer application frameworks and schemas | FastAPI, ORMs, database migrations, and CAN libraries should follow concrete requirements. |

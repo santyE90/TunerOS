@@ -5,4 +5,4 @@ project(TunerOS VERSION 0.1.0 LANGUAGES CXX)
 include(CTest)
 
 add_subdirectory(simulator)
-
+add_subdirectory(can)

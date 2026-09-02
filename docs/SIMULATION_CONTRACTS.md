@@ -3,8 +3,9 @@
 This specification defines the stable engineering contracts and records the Phase 1A–1C
 deterministic simulation implementation. Only vehicle-side clock,
 initial/environment configuration,
-scenario input, orchestration, and minimal state evolution exist; downstream ECU/CAN and application
-layers remain unimplemented.
+scenario input, orchestration, and minimal state evolution exist. Phase 2A consumes this state
+through a read-only simulated DME and synthetic CAN boundary; application layers remain
+unimplemented.
 
 ## Simulation time
 
@@ -103,9 +104,8 @@ Sea-level pressure is never a universal constant. The run environment supplies a
 ## VehicleState ownership
 
 `VehicleState` is the authoritative internal physical/logical state before ECU observation and CAN
-publication. It contains no UI formatting and no encoded signals. Phase 1 tests and local simulator
-tools may inspect it directly while CAN does not exist; that temporary development access is not a
-production telemetry path.
+publication. It contains no UI formatting and no encoded signals. Tests and simulator-only tools may
+inspect it directly; production telemetry must use ECU publication and the CAN/decode path.
 
 | Canonical field | Meaning | Unit / invariant | Owner/source | Phase 1 |
 | --- | --- | --- | --- | --- |
