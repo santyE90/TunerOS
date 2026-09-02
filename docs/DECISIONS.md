@@ -51,5 +51,12 @@ a dated superseding entry.
 | Bound history by per-engine sample count | A default capacity of 256 keeps memory finite while retaining every update until oldest-first eviction; no resampling occurs. |
 | Define freshness as at most two DBC periods old | Simulation time and authoritative DBC cycle time provide deterministic fresh/stale semantics without wall clocks or diagnostic quality scores. |
 | Keep Phase 4A in memory and non-derived | Resettable latest state, histories, snapshots, and statistics establish the domain contract; persistence and vehicle-level derived signals remain future concerns. |
+| Use FastAPI for the Phase 4B application boundary | It supplies explicit Pydantic schemas, OpenAPI, lifespan management, REST, and WebSocket support without changing telemetry-domain models. This supersedes only the earlier FastAPI deferral. |
+| Keep `TelemetryEngine` synchronous and protect it in `TelemetryService` | One service-owned lock coordinates the blocking gateway thread and API reads while preserving the deterministic domain component. |
+| Use REST for state and WebSocket for frame deltas | REST returns coherent catalog/latest/history/statistics views; each WebSocket update corresponds to one accepted decoded CAN frame rather than a full 100 Hz snapshot. |
+| Send an initial WebSocket snapshot | A client establishes coherent state before applying ordered frame deltas and does not race a separate REST request. |
+| Bound every subscriber queue to 256 events by default | Per-client queues and scheduled-delivery accounting isolate consumers; overflow disconnects only the slow client with code 1013 instead of blocking ingestion or silently dropping telemetry. |
+| Treat gateway EOF as service completion | The unpaced simulator naturally closes at scenario end, so final state remains queryable and clients receive an explicit completion event. |
+| Keep Phase 4B local and ephemeral | Loopback defaults, narrow localhost CORS, no authentication, and no persistence establish a development API without implying production deployment security. |
 | Avoid unnecessary distributed or units infrastructure | Message brokers, cloud services, and a dimensional-analysis library add no Phase 0 engineering value. |
-| Defer application frameworks and schemas | FastAPI, ORMs, database migrations, and CAN libraries should follow concrete requirements. |
+| Defer persistence frameworks and schemas | ORMs, database migrations, brokers, and unrelated application infrastructure should follow concrete requirements. |

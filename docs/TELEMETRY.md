@@ -3,7 +3,8 @@
 ## Purpose and boundary
 
 Phase 4A turns decoded synthetic CAN observations into deterministic, queryable application-domain
-state. Its only ingestion contract is `DecodedCanFrame`:
+state. Phase 4B coordinates that unchanged domain core with the live gateway and an API boundary.
+The engine's only ingestion contract remains `DecodedCanFrame`:
 
 ```text
 RawCanFrame -> TunerOsDbcDecoder -> DecodedCanFrame -> TelemetryEngine
@@ -11,8 +12,8 @@ RawCanFrame -> TunerOsDbcDecoder -> DecodedCanFrame -> TelemetryEngine
 
 The engine never accepts C++ simulator types, `VehicleState`, raw CAN, sockets, or `canmatrix`
 objects. Raw frames remain independently available upstream for a future CAN explorer or recorder.
-Telemetry contains no API, WebSocket, persistence, diagnostics, derived analytics, or presentation
-conversion.
+The domain engine contains no API, WebSocket, persistence, diagnostics, derived analytics, or
+presentation conversion.
 
 ## Authoritative metadata and signal identity
 
@@ -79,8 +80,35 @@ stale when age_us > 2 * expected_period_us
 ```
 
 The centralized multiplier is two. Thus a 10 ms engine-speed signal is fresh through 20 ms and stale
-at 20,001 microseconds, while a 100 ms coolant signal remains fresh through 200 ms. Stale samples remain the
-latest known values; freshness indicates update age only and carries no diagnostic meaning.
+at 20,001 microseconds, while a 100 ms coolant signal remains fresh through 200 ms. Stale samples
+remain the latest known values; freshness indicates update age only and carries no diagnostic
+meaning.
+
+## Live service and concurrency
+
+`TelemetryService` composes `RawCanGatewayClient`, `TunerOsDbcDecoder`, and `TelemetryEngine` without
+merging their responsibilities. Its configuration contains gateway host/port, history capacity,
+subscriber queue capacity, and gateway connection timeout. Defaults are `127.0.0.1:45800`, 256
+history samples, 256 queued events per WebSocket client, and a 10-second connection timeout.
+
+The blocking gateway reader runs on one dedicated daemon thread. A re-entrant service lock protects
+engine ingestion, lifecycle state, and coherent snapshot/history/statistics reads. Broadcasting
+occurs only after a whole decoded frame has been accepted. The engine remains intentionally unaware
+of threads and async consumers.
+
+Lifecycle states are `STOPPED`, `CONNECTING`, `RUNNING`, `COMPLETED`, and `FAILED`. Record-boundary
+EOF is normal completion: final telemetry remains queryable and connected WebSockets receive a
+completion event before closing normally. Connection, protocol, decode, or ingestion exceptions set
+`FAILED`, preserve safe error text, notify clients, and do not crash the API process. There is no
+automatic retry or restart in Phase 4B.
+
+Each WebSocket subscriber owns a bounded `asyncio.Queue`. Gateway-thread publications are scheduled
+onto the subscriber's event loop in original frame-sequence order. If its queue fills, only that slow
+subscriber is removed, receives an internal `slow_client` closure signal, and closes with WebSocket
+code 1013. Updates are never silently dropped and one slow client cannot block ingestion.
+
+The HTTP/WebSocket representation is defined separately in [API contracts](API.md). API adapters
+copy immutable domain values into explicit Pydantic schemas; domain models were not changed for JSON.
 
 ## Statistics and reset
 
@@ -100,6 +128,6 @@ session recording or replay feature.
 - `OutOfOrderTelemetryError`: a frame timestamp moves backward relative to accepted live input.
 - Duplicate and same-timestamp frames are not errors.
 
-Explicitly deferred are FastAPI, WebSockets, PostgreSQL telemetry storage, session recording/replay,
-diagnostics, thresholds, fault injection, derived horsepower/torque/boost/acceleration signals,
-aliases, dashboards, and physical CAN.
+Explicitly deferred are PostgreSQL telemetry storage, session recording/replay, diagnostics,
+thresholds, fault injection, derived horsepower/torque/boost/acceleration signals, aliases,
+authentication, dashboards, and physical CAN.

@@ -10,8 +10,9 @@ VehicleProfile + InitialConditions + Scenario + Environment + SimulationClock
                          -> CAN transport
                          -> DBC decoder
                          -> telemetry core
-                         -> persistence / diagnostics / API
-                         -> frontend
+                         -> telemetry service
+                         -> REST / WebSocket
+                         -> future frontend / persistence / diagnostics
 ```
 
 Simulation owns physical/logical state evolution. ECUs observe only relevant vehicle state, own
@@ -40,9 +41,9 @@ access, not a production telemetry path.
 - **C++20:** authoritative deterministic vehicle-side contracts and vehicle state evolution,
   application-level Classic CAN primitives, and simulated ECU publication.
 - **Python 3.12+:** synchronous live raw-CAN input, authoritative DBC decoding, immutable CAN
-  metadata, and deterministic telemetry aggregation into latest state, bounded histories, freshness,
-  and snapshots. Future diagnostics, persistence, and HTTP/WebSocket services begin downstream.
-  Python does not define or access C++ `VehicleState`.
+  metadata, deterministic telemetry aggregation, and a FastAPI REST/WebSocket application boundary.
+  Future diagnostics and persistence begin downstream. Python does not define or access C++
+  `VehicleState`.
 - **TypeScript/Next.js:** operator-facing visualization and investigation workflows only.
 - **PostgreSQL:** future durable configuration, sessions, decoded telemetry, diagnostics, and
   analysis; currently local infrastructure only.
@@ -93,6 +94,12 @@ Python process: RawCanGatewayClient -> RawCanFrame -> TunerOsDbcDecoder -> Decod
                                                           TelemetryEngine
                                                     /          |          \
                                                latest      histories    snapshots
+                                                                    |
+                                                        TelemetryService
+                                                          /          \
+                                                        REST       WebSocket
+                                                                    |
+                                                           future frontend
 ```
 
 The packaged DBC remains authoritative. Python receives only arbitration ID, meaningful payload
@@ -100,7 +107,7 @@ bytes, and integer simulation timestamp; it neither imports nor mirrors `Vehicle
 `tuneros_can_gateway` depends only on generic CAN, while the executable composes the gateway and
 multi-ECU vehicle-network targets. The single-client server begins simulation after accept,
 preserving time-zero frames. No telemetry service, physical CAN, broker, persistence, or frontend
-path is added.
+path was added by Phase 2C itself.
 
 ## Telemetry boundary
 
@@ -112,3 +119,16 @@ bounded per-signal histories, and small statistics.
 
 Raw CAN remains available before decode for a future CAN explorer or recorder. Telemetry never
 retains raw bytes and never accesses `VehicleState`. See [Telemetry contracts](TELEMETRY.md).
+
+## Telemetry service boundary
+
+Phase 4B adds `TelemetryService` as an application coordinator around the existing gateway, decoder,
+catalog, and engine. One dedicated thread performs blocking gateway ingestion. A service-owned lock
+serializes engine mutation and coherent API reads; `TelemetryEngine` itself remains a synchronous,
+deterministic domain object. FastAPI never decodes CAN or reproduces aggregation logic.
+
+REST provides catalog and current/queryable domain state. WebSocket clients receive an immutable
+initial snapshot followed by one decoded delta per accepted CAN frame. Per-client async queues are
+bounded, so a slow client is disconnected without blocking ingestion or other clients. Normal
+gateway EOF leaves final telemetry available in `COMPLETED`; gateway/decode/ingest exceptions become
+`FAILED` without terminating the API process. See [API contracts](API.md).

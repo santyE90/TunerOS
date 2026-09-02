@@ -6,15 +6,16 @@ automotive telemetry system would use: ECUs, binary CAN frames, decoded signals,
 and a browser interface. The first reference vehicle is a 2010 BMW E90 335i with the N54
 engine.
 
-> **Current status:** Phase 0, Phases 1A–1C, Phases 2A–2C, Phase 3A, and Phase 4A are complete. C++ provides
+> **Current status:** Phase 0, Phases 1A–1C, Phases 2A–2C, Phase 3A, and Phases 4A–4B are complete. C++ provides
 > deterministic vehicle simulation, independent simulated DME and DSC publication, globally ordered
 > synthetic Classic CAN, and in-memory transport. A versioned binary TCP loopback gateway carries
 > the combined raw bus live into
 > Python, which validates and decodes them through the packaged authoritative synthetic DBC. A
-> synchronous telemetry core now maintains typed latest values, provenance, bounded histories,
-> immutable snapshots, statistics, and simulation-time freshness. These definitions are not
-> authentic BMW traffic. FastAPI, WebSockets, persistence, recording/replay, diagnostics, tuning,
-> physical CAN, and dashboard telemetry are not implemented.
+> synchronous telemetry core maintains typed latest values, provenance, bounded histories,
+> immutable snapshots, statistics, and simulation-time freshness. A local FastAPI service exposes
+> that domain through REST and frame-atomic WebSocket deltas. These definitions are not authentic
+> BMW traffic. Persistence, recording/replay, diagnostics, tuning, physical CAN, authentication,
+> and dashboard telemetry are not implemented.
 
 ## Architecture at a glance
 
@@ -22,18 +23,18 @@ The planned data path is:
 
 ```text
 Vehicle model -> simulated ECUs -> binary CAN frames -> transport -> DBC decoder
-              -> telemetry backend -> persistence / diagnostics / API -> frontend
+              -> TelemetryEngine -> TelemetryService -> REST/WebSocket -> future frontend
 ```
 
 CAN is the required source-of-truth boundary for future frontend telemetry; the simulator will not
 bypass the frame and decode pipeline. C++ owns lower-level simulation and frame publication. Python
-begins at validated raw CAN and owns DBC decoding into engineering units. TypeScript/Next.js and
-PostgreSQL remain future presentation and persistence boundaries.
+begins at validated raw CAN and owns DBC decoding, telemetry aggregation, and the local service/API
+boundary. TypeScript/Next.js and PostgreSQL remain future presentation and persistence boundaries.
 
 ## Repository layout
 
 ```text
-backend/       Python gateway, DBC decoder, metadata, and deterministic telemetry core
+backend/       Python gateway, DBC decoder, telemetry core, and local REST/WebSocket service
 can/           C++ Classic CAN, simulated DME/DSC publication, shared bus, and loopback gateway
 frontend/      Minimal Next.js and TypeScript application
 shared/        Future language-neutral application contracts
@@ -98,7 +99,8 @@ python -m tuneros.can.live_decode --port 45800
 
 Supported scenarios are `idle`, `cold-start`, `warmup`, and `city`; `--step-us` and `--duration-us`
 override run timing. The single-client server defaults to maximum speed, has no authentication or
-TLS, and binds only `127.0.0.1`. This is a local process gateway, not physical CAN or telemetry.
+TLS, and binds only `127.0.0.1`. This gateway carries raw synthetic CAN rather than decoded telemetry
+and is not physical CAN.
 The live output now includes synthetic DME messages `0x500–0x502` and simulated DSC motion/wheel
 messages `0x520–0x521`; none are authentic BMW CAN definitions.
 
@@ -114,6 +116,27 @@ npm run dev
 ```
 
 The development server is available at `http://localhost:3000` by default.
+
+## Live telemetry API
+
+After building C++, start a CITY gateway in terminal 1:
+
+```powershell
+.\build\cpp\can\Debug\tuneros_gateway_sim.exe --scenario city --port 45800
+```
+
+Start the local API in terminal 2:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python -m tuneros.api --gateway-port 45800 --port 8000
+```
+
+Open `http://127.0.0.1:8000/docs` for generated OpenAPI documentation. Status, catalog, and current
+telemetry are available at `/api/v1/status`, `/api/v1/catalog`, and `/api/v1/telemetry`. The decoded
+delta WebSocket is `/api/v1/ws/telemetry`. The service defaults to loopback and narrowly allows the
+future local frontend origins on port 3000; it has no authentication or TLS and is not a deployment
+configuration.
 
 ## PostgreSQL
 
@@ -143,5 +166,6 @@ database.
 - [Simulation contracts](docs/SIMULATION_CONTRACTS.md)
 - [CAN design](docs/CAN_DESIGN.md)
 - [Telemetry contracts](docs/TELEMETRY.md)
+- [Telemetry API](docs/API.md)
 - [Diagnostics direction](docs/DIAGNOSTICS.md)
 - [Architecture decisions](docs/DECISIONS.md)

@@ -15,20 +15,20 @@ Status notation: **complete** is validated foundation; **planned** is not implem
 | 3A | Simulated DSC & Multi-ECU Shared Bus | **Complete** |
 | 3B | Richer ECU & Network Behavior | Planned |
 | 4A | Telemetry Core & Signal Aggregation | **Complete** |
-| 4B | Live Telemetry Service/API | Planned |
-| 5 | Telemetry Persistence & Sessions | Planned |
-| 6 | Live Vehicle Dashboard | Planned |
-| 7 | CAN Explorer | Planned |
-| 8 | Drive Sessions & Replay | Planned |
-| 9 | Diagnostics & DTCs | Planned |
-| 10 | Fault Injection | Planned |
-| 11 | Engine Model Expansion | Planned |
-| 12 | Calibration & Tuning | Planned |
-| 13 | Dyno Mode | Planned |
-| 14 | Data Analytics | Planned |
-| 15 | Predictive Diagnostics / ML | Planned |
-| 16 | Physical CAN / OBD Readiness | Planned |
-| 17 | Release / Portfolio Readiness | Planned |
+| 4B | Live Telemetry Service & API | **Complete** |
+| 5A | First Live Engineering Dashboard | Planned |
+| 5B | Telemetry Persistence & Sessions | Planned |
+| 6 | CAN Explorer | Planned |
+| 7 | Drive Sessions & Replay | Planned |
+| 8 | Diagnostics & DTCs | Planned |
+| 9 | Fault Injection | Planned |
+| 10 | Engine Model Expansion | Planned |
+| 11 | Calibration & Tuning | Planned |
+| 12 | Dyno Mode | Planned |
+| 13 | Data Analytics | Planned |
+| 14 | Predictive Diagnostics / ML | Planned |
+| 15 | Physical CAN / OBD Readiness | Planned |
+| 16 | Release / Portfolio Readiness | Planned |
 
 Phase 1A implements the first deterministic vehicle core:
 
@@ -69,10 +69,15 @@ Phase 4A adds immutable DBC metadata views, stable semantic signal keys, typed/p
 latest state, bounded histories, deterministic frame sequences, simulation-time freshness, coherent
 snapshots, statistics, schema/order errors, exact reset replay, and live C++ gateway integration.
 
-The recommended next step is Phase 4B, a narrowly scoped live telemetry service around the gateway,
-decoder, catalog, and `TelemetryEngine`. REST snapshot/catalog endpoints and WebSocket updates can
-then consume an established domain contract while persistence, sessions, diagnostics, and frontend
-work remain deferred.
+Phase 4B adds a synchronized live pipeline coordinator, explicit lifecycle states, FastAPI app
+factory/lifespan, versioned catalog/snapshot/signal/history/statistics routes, frame-atomic WebSocket
+deltas, bounded per-client queues, clean completion/failure behavior, and actual C++ gateway through
+REST/WebSocket validation. It adds no persistence, diagnostics, simulator controls, or frontend.
+
+The recommended next step is Phase 5A, a first live engineering dashboard. The existing Next.js
+shell can consume the established REST snapshot/catalog contract and WebSocket deltas for RPM,
+vehicle speed, throttle/load, thermal/electrical values, provenance, freshness, and connection state.
+Persistence and sessions should remain separate Phase 5B work.
 
 Further ECU behavior, physical CAN, diagnostics, calibration behavior, and frontend product work
 remain later phases. A later phase begins only after its required contracts and authenticity

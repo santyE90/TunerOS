@@ -5,15 +5,19 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "tuneros"
 version = "0.1.0"
-description = "Python CAN decode and telemetry core for the TunerOS automotive simulation platform"
+description = "Python CAN decode, telemetry core, and live API for the TunerOS simulation platform"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
   "canmatrix>=1.2,<2",
+  "fastapi>=0.141,<1",
+  "uvicorn>=0.52,<1",
+  "websockets>=17,<18",
 ]
 
 [project.optional-dependencies]
 dev = [
+  "httpx2>=2.12,<3",
   "pytest>=8.4,<10",
   "ruff>=0.12,<1",
 ]
