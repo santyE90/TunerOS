@@ -39,8 +39,9 @@ access, not a production telemetry path.
 
 - **C++20:** authoritative deterministic vehicle-side contracts and vehicle state evolution,
   application-level Classic CAN primitives, and simulated ECU publication.
-- **Python 3.12+:** future CAN adapters, decoding orchestration, telemetry ingestion, deterministic
-  diagnostics, persistence, and HTTP/WebSocket services. It does not duplicate C++ `VehicleState`.
+- **Python 3.12+:** validated raw CAN input and authoritative DBC decoding into typed engineering
+  signals; future gateway, telemetry, diagnostics, persistence, and HTTP/WebSocket services begin
+  downstream of this boundary. Python does not define or access C++ `VehicleState`.
 - **TypeScript/Next.js:** operator-facing visualization and investigation workflows only.
 - **PostgreSQL:** future durable configuration, sessions, decoded telemetry, diagnostics, and
   analysis; currently local infrastructure only.
@@ -70,5 +71,22 @@ Phase 1 use. Later adapters may target SocketCAN or physical hardware without ch
 evolution or DME packing.
 
 `VehicleNetworkSimulation` coordinates vehicle ticks, read-only DME observation, publication, and
-network reset. It does not expose a vehicle-to-telemetry shortcut. DBC decoding and all application
-layers remain unimplemented.
+network reset. It does not expose a vehicle-to-telemetry shortcut.
+
+## Raw CAN and Python decode boundary
+
+Phase 2B establishes the first cross-language boundary without FFI or live IPC:
+
+```text
+C++:    VehicleSimulation -> SimulatedDme -> CanFrame -> CanTransport
+                                                   |
+                                            raw CAN boundary
+                                                   |
+Python:              RawCanFrame -> TunerOsDbcDecoder -> DecodedCanFrame
+```
+
+The packaged DBC is the authoritative external signal schema. Python receives only arbitration ID,
+payload bytes, and integer simulation timestamp. It neither imports nor mirrors `VehicleState`.
+Independent golden vectors prove agreement with C++ packing. A future live gateway may carry this
+same raw-frame contract; Phase 2B adds no socket, subprocess, physical adapter, queue, or backend
+service.

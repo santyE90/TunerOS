@@ -1,4 +1,4 @@
-"""Shared Python package for future TunerOS backend services."""
+"""TunerOS Python CAN-decode boundary and future backend package."""
 
 from tuneros.project import PROJECT_NAME
 

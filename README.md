@@ -6,11 +6,12 @@ automotive telemetry system would use: ECUs, binary CAN frames, decoded signals,
 and a browser interface. The first reference vehicle is a 2010 BMW E90 335i with the N54
 engine.
 
-> **Current status:** Phase 0, Phases 1A–1C, and Phase 2A are complete. The C++ implementation now
-> provides deterministic vehicle simulation, read-only simulated DME observation, three synthetic
-> binary Classic CAN publications, and an in-memory CAN transport. These definitions are TunerOS
-> synthetic—not authentic BMW traffic. DBC decoding, physical CAN, telemetry, diagnostics, tuning,
-> persistence, and product dashboard features are not implemented.
+> **Current status:** Phase 0, Phases 1A–1C, and Phases 2A–2B are complete. C++ provides
+> deterministic vehicle simulation, simulated DME publication, synthetic binary Classic CAN, and
+> in-memory transport. Python now validates raw frames and decodes all current signals through the
+> packaged authoritative synthetic DBC. These definitions are not authentic BMW traffic. Live CAN
+> ingestion, physical CAN, telemetry services, persistence, diagnostics, tuning, and dashboard
+> features are not implemented.
 
 ## Architecture at a glance
 
@@ -22,19 +23,20 @@ Vehicle model -> simulated ECUs -> binary CAN frames -> transport -> DBC decoder
 ```
 
 CAN is the required source-of-truth boundary for future frontend telemetry; the simulator will not
-bypass the frame and decode pipeline. C++ is reserved for lower-level simulation, Python for future CAN/telemetry/diagnostics
-services, TypeScript and Next.js for the UI, and PostgreSQL for durable data. These are boundaries,
-not implemented product features in this phase.
+bypass the frame and decode pipeline. C++ owns lower-level simulation and frame publication. Python
+begins at validated raw CAN and owns DBC decoding into engineering units. TypeScript/Next.js and
+PostgreSQL remain future presentation and persistence boundaries.
 
 ## Repository layout
 
 ```text
-backend/       Minimal importable Python package; future backend services
-can/           C++ Classic CAN contract, in-memory transport, and simulated DME publication
+backend/       Python raw-frame contract and DBC decoder; future backend services
+can/           C++ Classic CAN transport and simulated DME publication
 frontend/      Minimal Next.js and TypeScript application
-shared/        Future language-neutral contracts and fixtures
+shared/        Future language-neutral application contracts
 simulator/     C++20 deterministic IDLE/COLD_START/WARMUP/CITY vehicle simulation
 tests/python/  Python tests
+tests/fixtures/Independent synthetic CAN golden vectors
 docs/          Product and engineering specifications
 .github/       Continuous integration
 ```

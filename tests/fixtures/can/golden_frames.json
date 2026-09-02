@@ -1,0 +1,157 @@
+{
+  "description": "Independently calculated TunerOS synthetic CAN wire vectors; not BMW data.",
+  "vectors": [
+    {
+      "name": "cold_before_start_fast",
+      "scenario": "COLD_START",
+      "arbitration_id": 1280,
+      "payload_hex": "0000000000",
+      "timestamp_microseconds": 0,
+      "expected": {
+        "EngineSpeedRpm": 0.0,
+        "ThrottlePosition": 0.0,
+        "EngineLoad": 0.0,
+        "EngineRunning": false
+      }
+    },
+    {
+      "name": "city_idle_fast",
+      "scenario": "CITY",
+      "arbitration_id": 1280,
+      "payload_hex": "480d0f2e01",
+      "timestamp_microseconds": 0,
+      "expected": {
+        "EngineSpeedRpm": 850.0,
+        "ThrottlePosition": 0.058823529411764705,
+        "EngineLoad": 0.1803921568627451,
+        "EngineRunning": true
+      }
+    },
+    {
+      "name": "city_acceleration_fast",
+      "scenario": "CITY",
+      "arbitration_id": 1280,
+      "payload_hex": "e02e80bf01",
+      "timestamp_microseconds": 15000000,
+      "expected": {
+        "EngineSpeedRpm": 3000.0,
+        "ThrottlePosition": 0.5019607843137255,
+        "EngineLoad": 0.7490196078431373,
+        "EngineRunning": true
+      }
+    },
+    {
+      "name": "cold_after_start_fast",
+      "scenario": "COLD_START",
+      "arbitration_id": 1280,
+      "payload_hex": "60091a6601",
+      "timestamp_microseconds": 1000000,
+      "expected": {
+        "EngineSpeedRpm": 600.0,
+        "ThrottlePosition": 0.10196078431372549,
+        "EngineLoad": 0.4,
+        "EngineRunning": true
+      }
+    },
+    {
+      "name": "cpp_encoder_representative_fast",
+      "scenario": "ENCODER_CONTRACT",
+      "arbitration_id": 1280,
+      "payload_hex": "7017804001",
+      "timestamp_microseconds": 123000,
+      "expected": {
+        "EngineSpeedRpm": 1500.0,
+        "ThrottlePosition": 0.5019607843137255,
+        "EngineLoad": 0.25098039215686274,
+        "EngineRunning": true
+      }
+    },
+    {
+      "name": "city_idle_air_load",
+      "scenario": "CITY",
+      "arbitration_id": 1281,
+      "payload_hex": "9501001a",
+      "timestamp_microseconds": 0,
+      "expected": {
+        "ManifoldPressureAbsolute": 40.5,
+        "AcceleratorPedalPosition": 0.0,
+        "RequestedScenarioLoad": 0.10196078431372549
+      }
+    },
+    {
+      "name": "city_moderate_air_load",
+      "scenario": "CITY",
+      "arbitration_id": 1281,
+      "payload_hex": "c5027380",
+      "timestamp_microseconds": 15000000,
+      "expected": {
+        "ManifoldPressureAbsolute": 70.9,
+        "AcceleratorPedalPosition": 0.45098039215686275,
+        "RequestedScenarioLoad": 0.5019607843137255
+      }
+    },
+    {
+      "name": "city_near_ambient_air_load",
+      "scenario": "CITY",
+      "arbitration_id": 1281,
+      "payload_hex": "f5034de6",
+      "timestamp_microseconds": 75000000,
+      "expected": {
+        "ManifoldPressureAbsolute": 101.3,
+        "AcceleratorPedalPosition": 0.30196078431372547,
+        "RequestedScenarioLoad": 0.9019607843137255
+      }
+    },
+    {
+      "name": "cpp_encoder_representative_air_load",
+      "scenario": "ENCODER_CONTRACT",
+      "arbitration_id": 1281,
+      "payload_hex": "25038040",
+      "timestamp_microseconds": 123000,
+      "expected": {
+        "ManifoldPressureAbsolute": 80.5,
+        "AcceleratorPedalPosition": 0.5019607843137255,
+        "RequestedScenarioLoad": 0.25098039215686274
+      }
+    },
+    {
+      "name": "cold_before_start_thermal",
+      "scenario": "COLD_START",
+      "arbitration_id": 1282,
+      "payload_hex": "b004b004b0047e",
+      "timestamp_microseconds": 0,
+      "expected": {
+        "CoolantTemperature": 20.0,
+        "OilTemperature": 20.0,
+        "IntakeAirTemperature": 20.0,
+        "BatteryVoltage": 12.6
+      }
+    },
+    {
+      "name": "cold_after_start_thermal",
+      "scenario": "COLD_START",
+      "arbitration_id": 1282,
+      "payload_hex": "b004b004b0048a",
+      "timestamp_microseconds": 2000000,
+      "expected": {
+        "CoolantTemperature": 20.0,
+        "OilTemperature": 20.0,
+        "IntakeAirTemperature": 20.0,
+        "BatteryVoltage": 13.8
+      }
+    },
+    {
+      "name": "warm_operating_thermal",
+      "scenario": "WARMUP",
+      "arbitration_id": 1282,
+      "payload_hex": "6c07d007e2048e",
+      "timestamp_microseconds": 12345678,
+      "expected": {
+        "CoolantTemperature": 90.0,
+        "OilTemperature": 100.0,
+        "IntakeAirTemperature": 25.0,
+        "BatteryVoltage": 14.2
+      }
+    }
+  ]
+}

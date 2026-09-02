@@ -12,7 +12,7 @@ a dated superseding entry.
 | Use TypeScript and Next.js for the UI | They provide typed web contracts and a conventional React application boundary. |
 | Start persistence with PostgreSQL | One general-purpose relational store is sufficient until measured needs justify more. |
 | Use Docker Compose locally | It makes the required database reproducible without containerizing every developer tool. |
-| Make CAN the telemetry source of truth | Vehicle state flows through ECU encoding and DBC decoding; direct simulator access is restricted to pre-CAN tests/tools. |
+| Make CAN the telemetry source of truth | Vehicle state flows through ECU encoding and DBC decoding; direct simulator access is restricted to simulator/encoding tests and tools. |
 | Avoid a full physics engine | Learning goals require coherent signals and state transitions, not exhaustive dynamics. |
 | Classify information as public reference, realistic simplification, or synthetic | Plausibility must never be mistaken for sourced BMW behavior. |
 | Use deterministic fixed-step simulation independent of wall time | Runs and tests must be reproducible and able to execute faster or slower than real time. |
@@ -32,5 +32,9 @@ a dated superseding entry.
 | Publish initial ECU snapshots at simulation time zero | Consumers receive a deterministic initial state; inclusive run-end publication makes counts and replay behavior explicit. |
 | Schedule DME frames with integer next-due timestamps | Timestamp crossing supports non-divisible simulation steps without wall time or interpolation; at most one frame type per observed state avoids duplicate samples. |
 | Order simultaneous frames by ascending arbitration ID | It is deterministic and resembles CAN priority ordering without simulating arbitration delay. |
+| Make the packaged DBC the authoritative external signal schema | C++ retains encoder constants to produce the wire format; downstream engineering meaning comes from one DBC rather than a duplicate Python layout table. |
+| Begin Python at a validated raw-CAN boundary | `RawCanFrame` carries only ID, bytes, and simulation timestamp, preventing Python/backend code from accessing privileged `VehicleState`. |
+| Use `canmatrix` for Phase 2B DBC parsing | It loads and decodes a real DBC without requiring the explicitly deferred `python-can` transport dependency; `cantools` was evaluated but currently requires `python-can`. |
+| Defer live C++/Python transport bridging | Golden raw-frame vectors prove the cross-language wire contract without adding FFI, sockets, pipes, or a premature gateway. |
 | Avoid unnecessary distributed or units infrastructure | Message brokers, cloud services, and a dimensional-analysis library add no Phase 0 engineering value. |
 | Defer application frameworks and schemas | FastAPI, ORMs, database migrations, and CAN libraries should follow concrete requirements. |

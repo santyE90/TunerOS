@@ -5,10 +5,12 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "tuneros"
 version = "0.1.0"
-description = "Python foundation for the TunerOS telemetry and diagnostics platform"
+description = "Python DBC decode boundary for the TunerOS automotive simulation platform"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+  "canmatrix>=1.2,<2",
+]
 
 [project.optional-dependencies]
 dev = [
@@ -21,6 +23,9 @@ package-dir = { "" = "backend/src" }
 
 [tool.setuptools.packages.find]
 where = ["backend/src"]
+
+[tool.setuptools.package-data]
+"tuneros.can" = ["dbc/*.dbc"]
 
 [tool.pytest.ini_options]
 addopts = "--strict-config --strict-markers"
