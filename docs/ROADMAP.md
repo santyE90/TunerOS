@@ -16,7 +16,7 @@ Status notation: **complete** is validated foundation; **planned** is not implem
 | 3B | Richer ECU & Network Behavior | Planned |
 | 4A | Telemetry Core & Signal Aggregation | **Complete** |
 | 4B | Live Telemetry Service & API | **Complete** |
-| 5A | First Live Engineering Dashboard | Planned |
+| 5A | First Live Engineering Dashboard | **Complete** |
 | 5B | Telemetry Persistence & Sessions | Planned |
 | 6 | CAN Explorer | Planned |
 | 7 | Drive Sessions & Replay | Planned |
@@ -74,10 +74,16 @@ factory/lifespan, versioned catalog/snapshot/signal/history/statistics routes, f
 deltas, bounded per-client queues, clean completion/failure behavior, and actual C++ gateway through
 REST/WebSocket validation. It adds no persistence, diagnostics, simulator controls, or frontend.
 
-The recommended next step is Phase 5A, a first live engineering dashboard. The existing Next.js
-shell can consume the established REST snapshot/catalog contract and WebSocket deltas for RPM,
-vehicle speed, throttle/load, thermal/electrical values, provenance, freshness, and connection state.
-Persistence and sessions should remain separate Phase 5B work.
+Phase 5A turns the Next.js shell into an observation-only engineering dashboard. It consumes REST
+status/catalog plus one WebSocket initial snapshot and ordered frame deltas, retains bounded
+simulation-time chart history, displays freshness and provenance, and provides Overview and
+catalog-driven Telemetry pages. It adds no backend contract, persistence, raw CAN view, diagnostics,
+tuning, sessions, or simulator controls.
+
+The recommended next step is Phase 5B, Session Recording & Replay Foundation. Durable run capture
+would turn the live dashboard into a datalogging workflow and give future investigation pages real
+stored data. Raw CAN Explorer remains valuable later but should not displace the decoded-session
+foundation.
 
 Further ECU behavior, physical CAN, diagnostics, calibration behavior, and frontend product work
 remain later phases. A later phase begins only after its required contracts and authenticity

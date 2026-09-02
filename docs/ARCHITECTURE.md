@@ -12,7 +12,8 @@ VehicleProfile + InitialConditions + Scenario + Environment + SimulationClock
                          -> telemetry core
                          -> telemetry service
                          -> REST / WebSocket
-                         -> future frontend / persistence / diagnostics
+                         -> Next.js engineering dashboard
+                         -> future persistence / diagnostics
 ```
 
 Simulation owns physical/logical state evolution. ECUs observe only relevant vehicle state, own
@@ -44,7 +45,9 @@ access, not a production telemetry path.
   metadata, deterministic telemetry aggregation, and a FastAPI REST/WebSocket application boundary.
   Future diagnostics and persistence begin downstream. Python does not define or access C++
   `VehicleState`.
-- **TypeScript/Next.js:** operator-facing visualization and investigation workflows only.
+- **TypeScript/Next.js:** observation-only operator visualization. Phase 5A owns network contract
+  validation, ordered live client state, presentation history, and engineering views; it does not
+  decode CAN or access vehicle state.
 - **PostgreSQL:** future durable configuration, sessions, decoded telemetry, diagnostics, and
   analysis; currently local infrastructure only.
 - **Docker Compose:** reproducible local infrastructure, currently PostgreSQL only.
@@ -99,7 +102,7 @@ Python process: RawCanGatewayClient -> RawCanFrame -> TunerOsDbcDecoder -> Decod
                                                           /          \
                                                         REST       WebSocket
                                                                     |
-                                                           future frontend
+                                                        Next.js frontend
 ```
 
 The packaged DBC remains authoritative. Python receives only arbitration ID, meaningful payload
@@ -132,3 +135,17 @@ initial snapshot followed by one decoded delta per accepted CAN frame. Per-clien
 bounded, so a slow client is disconnected without blocking ingestion or other clients. Normal
 gateway EOF leaves final telemetry available in `COMPLETED`; gateway/decode/ingest exceptions become
 `FAILED` without terminating the API process. See [API contracts](API.md).
+
+## Frontend boundary
+
+Phase 5A connects the browser directly to the local FastAPI boundary. Startup fetches REST status
+and the authoritative catalog, while one shared WebSocket provides the initial telemetry snapshot,
+ordered frame-atomic deltas, and terminal service state. The WebSocket snapshot replaces client
+telemetry state before subsequent deltas are accepted, avoiding a REST-snapshot race.
+
+The client validates critical network fields, keys observations by canonical message and signal
+name, applies each decoded frame in one reducer transition, rejects duplicate/regressing sequence
+numbers, and reports forward gaps. Its bounded, deterministically sampled chart history is disposable
+presentation state, not recording or a new telemetry authority. Canonical units and full provenance
+remain unchanged; km/h and percent appear only as display conversions. See
+[Frontend dashboard](FRONTEND.md).

@@ -130,4 +130,5 @@ session recording or replay feature.
 
 Explicitly deferred are PostgreSQL telemetry storage, session recording/replay, diagnostics,
 thresholds, fault injection, derived horsepower/torque/boost/acceleration signals, aliases,
-authentication, dashboards, and physical CAN.
+authentication, and physical CAN. Phase 5A provides a live decoded-signal dashboard downstream of
+the existing API; it does not change this telemetry-domain contract.

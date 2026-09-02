@@ -161,4 +161,5 @@ loopback-only, but Phase 4B provides no authentication, authorization, or TLS an
 as a production deployment configuration.
 
 Persistence, session recording/replay, diagnostics, tuning, raw-CAN streaming, simulator control,
-frontend telemetry, and physical CAN remain deferred.
+and physical CAN remain deferred. Phase 5A consumes this API from the browser without changing its
+contracts; see [Frontend dashboard](FRONTEND.md).

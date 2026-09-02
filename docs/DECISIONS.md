@@ -58,5 +58,9 @@ a dated superseding entry.
 | Bound every subscriber queue to 256 events by default | Per-client queues and scheduled-delivery accounting isolate consumers; overflow disconnects only the slow client with code 1013 instead of blocking ingestion or silently dropping telemetry. |
 | Treat gateway EOF as service completion | The unpaced simulator naturally closes at scenario end, so final state remains queryable and clients receive an explicit completion event. |
 | Keep Phase 4B local and ephemeral | Loopback defaults, narrow localhost CORS, no authentication, and no persistence establish a development API without implying production deployment security. |
+| Use one shared browser WebSocket with a reducer | A single connection preserves the server's ordered, frame-atomic contract; one reducer transition applies all samples in a delta and avoids per-widget networking. |
+| Treat the WebSocket initial snapshot as frontend authority | REST supplies startup status and catalog, but the socket snapshot establishes telemetry state and sequence before deltas, eliminating snapshot/delta races. |
+| Keep frontend chart history bounded and presentation-only | Each numeric signal retains at most 180 points at deterministic 50,000-microsecond simulation-time spacing while every event still updates latest state. This handles unpaced bursts without inventing persistence. |
+| Keep frontend conversions at the presentation boundary | Overview may show m/s as km/h and normalized values as percent, while detailed telemetry retains canonical API values, units, timestamps, and provenance. |
 | Avoid unnecessary distributed or units infrastructure | Message brokers, cloud services, and a dimensional-analysis library add no Phase 0 engineering value. |
 | Defer persistence frameworks and schemas | ORMs, database migrations, brokers, and unrelated application infrastructure should follow concrete requirements. |
