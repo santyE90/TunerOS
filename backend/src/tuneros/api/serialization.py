@@ -10,15 +10,25 @@ from tuneros.api.models import (
     DiagnosticDefinitionResponse,
     DiagnosticEventResponse,
     DiagnosticFreezeFrameResponse,
+    DiagnosticStateAtTimeResponse,
     DiagnosticSummaryResponse,
     DiagnosticTroubleCodeResponse,
     FreezeFrameSignalResponse,
     InitialCanSnapshotEventResponse,
     InitialSnapshotEventResponse,
+    InvestigationComparisonResponse,
+    InvestigationEvidenceExportResponse,
+    InvestigationResponse,
+    InvestigationSignalSeriesResponse,
+    InvestigationSignalSummaryResponse,
+    InvestigationStatisticsResponse,
+    InvestigationWindowResponse,
     MessageFrameCountResponse,
+    SelectedSignalCountResponse,
     ServiceStateEventResponse,
     SessionDetailResponse,
     SessionSummaryResponse,
+    SignalComparisonResponse,
     SignalDefinitionResponse,
     SignalKeyResponse,
     SignalSampleResponse,
@@ -39,6 +49,12 @@ from tuneros.diagnostics import (
     DiagnosticFreezeFrame,
     DiagnosticSnapshot,
     DiagnosticTroubleCode,
+)
+from tuneros.investigation import (
+    InvestigationComparison,
+    InvestigationEvidenceExport,
+    InvestigationResult,
+    InvestigationSignalSummary,
 )
 from tuneros.session import SessionManifest
 from tuneros.telemetry import (
@@ -384,4 +400,135 @@ def serialize_session_detail(
         frames_sha256=manifest.frames_sha256,
         first_timestamp_microseconds=manifest.first_timestamp_microseconds,
         last_timestamp_microseconds=manifest.last_timestamp_microseconds,
+    )
+
+
+def serialize_investigation_summary(
+    summary: InvestigationSignalSummary,
+) -> InvestigationSignalSummaryResponse:
+    return InvestigationSignalSummaryResponse(
+        key=SignalKeyResponse(
+            message_name=summary.key.message_name,
+            signal_name=summary.key.signal_name,
+        ),
+        value_type=summary.value_type,
+        observation_count=summary.observation_count,
+        first=summary.first,
+        last=summary.last,
+        minimum=summary.minimum,
+        maximum=summary.maximum,
+        mean=summary.mean,
+        distinct_values=list(summary.distinct_values),
+    )
+
+
+def serialize_investigation(result: InvestigationResult) -> InvestigationResponse:
+    return InvestigationResponse(
+        session=serialize_session_detail(result.session, dbc_compatible=True),
+        window=InvestigationWindowResponse(
+            requested_center_timestamp_microseconds=(
+                result.window.requested_center_timestamp_microseconds
+            ),
+            center_timestamp_microseconds=result.window.center_timestamp_microseconds,
+            requested_before_microseconds=result.window.requested_before_microseconds,
+            requested_after_microseconds=result.window.requested_after_microseconds,
+            start_timestamp_microseconds=result.window.start_timestamp_microseconds,
+            end_timestamp_microseconds=result.window.end_timestamp_microseconds,
+            duration_microseconds=result.window.duration_microseconds,
+        ),
+        available_signals=[serialize_definition(item) for item in result.available_signals],
+        selected_signals=[
+            SignalKeyResponse(message_name=key.message_name, signal_name=key.signal_name)
+            for key in result.selected_signals
+        ],
+        start_context=[serialize_sample(sample) for sample in result.start_context],
+        raw_frames=[serialize_can_frame(frame) for frame in result.raw_frames],
+        telemetry_series=[
+            InvestigationSignalSeriesResponse(
+                definition=serialize_definition(series.definition),
+                samples=[serialize_sample(sample) for sample in series.samples],
+            )
+            for series in result.telemetry_series
+        ],
+        signal_summaries=[
+            serialize_investigation_summary(summary) for summary in result.signal_summaries
+        ],
+        diagnostic_events=[serialize_diagnostic_event(event) for event in result.diagnostic_events],
+        diagnostic_states_at_center=[
+            DiagnosticStateAtTimeResponse(
+                definition=serialize_diagnostic_definition(state.definition),
+                status="absent" if state.status is None else state.status,
+                record=None if state.record is None else serialize_dtc(state.record),
+            )
+            for state in result.diagnostic_states_at_center
+        ],
+        freeze_frames_at_center=[
+            serialize_diagnostic_freeze_frame(frame) for frame in result.freeze_frames_at_center
+        ],
+        statistics=InvestigationStatisticsResponse(
+            raw_frame_count=result.statistics.raw_frame_count,
+            decoded_signal_update_count=result.statistics.decoded_signal_update_count,
+            diagnostic_event_count=result.statistics.diagnostic_event_count,
+            selected_signal_counts=[
+                SelectedSignalCountResponse(
+                    key=SignalKeyResponse(
+                        message_name=key.message_name,
+                        signal_name=key.signal_name,
+                    ),
+                    count=count,
+                )
+                for key, count in result.statistics.selected_signal_counts
+            ],
+            window_duration_microseconds=result.statistics.window_duration_microseconds,
+        ),
+    )
+
+
+def serialize_investigation_comparison(
+    comparison: InvestigationComparison,
+) -> InvestigationComparisonResponse:
+    return InvestigationComparisonResponse(
+        primary=serialize_investigation(comparison.primary),
+        baseline=serialize_investigation(comparison.baseline),
+        signal_comparisons=[
+            SignalComparisonResponse(
+                key=SignalKeyResponse(
+                    message_name=item.key.message_name,
+                    signal_name=item.key.signal_name,
+                ),
+                primary=serialize_investigation_summary(item.primary),
+                baseline=serialize_investigation_summary(item.baseline),
+                mean_difference=item.mean_difference,
+            )
+            for item in comparison.signal_comparisons
+        ],
+        diagnostic_code=comparison.diagnostic_code,
+        primary_has_diagnostic_event=comparison.primary_has_diagnostic_event,
+        baseline_has_diagnostic_event=comparison.baseline_has_diagnostic_event,
+    )
+
+
+def serialize_investigation_export(
+    export: InvestigationEvidenceExport,
+) -> InvestigationEvidenceExportResponse:
+    return InvestigationEvidenceExportResponse(
+        format_name=export.format_name,
+        format_version=export.format_version,
+        investigation=serialize_investigation(export.investigation),
+        baseline=None if export.baseline is None else serialize_investigation(export.baseline),
+        signal_comparisons=[
+            SignalComparisonResponse(
+                key=SignalKeyResponse(
+                    message_name=item.key.message_name,
+                    signal_name=item.key.signal_name,
+                ),
+                primary=serialize_investigation_summary(item.primary),
+                baseline=serialize_investigation_summary(item.baseline),
+                mean_difference=item.mean_difference,
+            )
+            for item in export.signal_comparisons
+        ],
+        diagnostic_code=export.diagnostic_code,
+        primary_has_diagnostic_event=export.primary_has_diagnostic_event,
+        baseline_has_diagnostic_event=export.baseline_has_diagnostic_event,
     )

@@ -157,3 +157,10 @@ See [Diagnostics](DIAGNOSTICS.md).
 Phase 7B does not add a telemetry fault channel or metadata field. Altered engineering values arrive
 only by decoding existing fault-affected raw frames. Signal keys, provenance, freshness, histories,
 statistics, and REST/WebSocket contracts are unchanged.
+
+Phase 8A reconstructs selected historical telemetry series from validated raw session frames for a
+bounded investigation window. The authoritative DBC and production `TelemetryEngine` are reused in
+an isolated service. Exact observation timestamps and types are retained, the latest selected
+sample at or before window start is supplied as context, and no samples are interpolated,
+downsampled, or persisted as a second telemetry recording. See
+[Diagnostic investigation workflows](INVESTIGATION.md).

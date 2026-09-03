@@ -252,6 +252,94 @@ class SessionReplayResponse(ApiModel):
     service_state: Literal["running"] = "running"
 
 
+class InvestigationWindowResponse(ApiModel):
+    requested_center_timestamp_microseconds: int
+    center_timestamp_microseconds: int
+    requested_before_microseconds: int
+    requested_after_microseconds: int
+    start_timestamp_microseconds: int
+    end_timestamp_microseconds: int
+    duration_microseconds: int
+
+
+class InvestigationSignalSeriesResponse(ApiModel):
+    definition: SignalDefinitionResponse
+    samples: list[SignalSampleResponse]
+
+
+class InvestigationSignalSummaryResponse(ApiModel):
+    key: SignalKeyResponse
+    value_type: Literal["numeric", "boolean", "unobserved"]
+    observation_count: int
+    first: SignalValue | None
+    last: SignalValue | None
+    minimum: float | None
+    maximum: float | None
+    mean: float | None
+    distinct_values: list[SignalValue]
+
+
+class DiagnosticStateAtTimeResponse(ApiModel):
+    definition: DiagnosticDefinitionResponse
+    status: DiagnosticStatus | Literal["absent"]
+    record: DiagnosticTroubleCodeResponse | None
+
+
+class SelectedSignalCountResponse(ApiModel):
+    key: SignalKeyResponse
+    count: int
+
+
+class InvestigationStatisticsResponse(ApiModel):
+    raw_frame_count: int
+    decoded_signal_update_count: int
+    diagnostic_event_count: int
+    selected_signal_counts: list[SelectedSignalCountResponse]
+    window_duration_microseconds: int
+
+
+class InvestigationResponse(ApiModel):
+    session: SessionDetailResponse
+    window: InvestigationWindowResponse
+    available_signals: list[SignalDefinitionResponse]
+    selected_signals: list[SignalKeyResponse]
+    start_context: list[SignalSampleResponse]
+    raw_frames: list[CanExplorerFrameResponse]
+    telemetry_series: list[InvestigationSignalSeriesResponse]
+    signal_summaries: list[InvestigationSignalSummaryResponse]
+    diagnostic_events: list[DiagnosticEventResponse]
+    diagnostic_states_at_center: list[DiagnosticStateAtTimeResponse]
+    freeze_frames_at_center: list[DiagnosticFreezeFrameResponse]
+    statistics: InvestigationStatisticsResponse
+
+
+class SignalComparisonResponse(ApiModel):
+    key: SignalKeyResponse
+    primary: InvestigationSignalSummaryResponse
+    baseline: InvestigationSignalSummaryResponse
+    mean_difference: float | None
+
+
+class InvestigationComparisonResponse(ApiModel):
+    primary: InvestigationResponse
+    baseline: InvestigationResponse
+    signal_comparisons: list[SignalComparisonResponse]
+    diagnostic_code: str | None
+    primary_has_diagnostic_event: bool | None
+    baseline_has_diagnostic_event: bool | None
+
+
+class InvestigationEvidenceExportResponse(ApiModel):
+    format_name: str
+    format_version: int
+    investigation: InvestigationResponse
+    baseline: InvestigationResponse | None
+    signal_comparisons: list[SignalComparisonResponse]
+    diagnostic_code: str | None
+    primary_has_diagnostic_event: bool | None
+    baseline_has_diagnostic_event: bool | None
+
+
 class SignalResponse(ApiModel):
     definition: SignalDefinitionResponse
     sample: SignalSampleResponse | None

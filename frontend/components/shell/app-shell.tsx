@@ -19,7 +19,9 @@ const navigation = [
 export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
   const pathname = usePathname();
   const pageTitle =
-    pathname === "/telemetry"
+    pathname.includes("/investigate")
+      ? "Diagnostic investigation"
+      : pathname === "/telemetry"
       ? "Signal telemetry"
       : pathname === "/can"
         ? "Raw CAN explorer"
@@ -91,7 +93,9 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
       <div className="workspace">
         <header className="workspace-header">
           <div>
-            <span className="section-kicker">Live vehicle data</span>
+            <span className="section-kicker">
+              {pathname.includes("/investigate") ? "Recorded session evidence" : "Live vehicle data"}
+            </span>
             <h1>{pageTitle}</h1>
           </div>
           <div className="header-context">

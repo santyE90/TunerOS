@@ -233,3 +233,23 @@ FaultConfiguration -> VehicleSimulation / SensorObservation -> DME + DSC -> RawC
 
 Scenarios and faults are orthogonal configuration. No-fault execution retains the previous exact
 state and CAN contracts. See [Fault injection](FAULT_INJECTION.md).
+
+## Historical investigation boundary
+
+Phase 8A adds a read-only path beside, not inside, active replay:
+
+```text
+.tuneros -> SessionReader -> InvestigationService
+                              +-> bounded ordered raw evidence
+                              +-> DBC -> isolated TelemetryEngine -> isolated DiagnosticEngine
+                              +-> immutable InvestigationResult -> REST -> /sessions/[id]/investigate
+
+.tuneros -> SessionReader -> active replay -> TelemetryService -> existing REST/WebSockets
+```
+
+Only canonical catalog UUIDs are accepted, preserving manifest, hash, frame, path, and installed-DBC
+validation. Investigation scans from artifact start to reconstruct pre-window signal state and
+diagnostic persistence, consumes the reader for full integrity validation, and retains only bounded
+evidence. Simulation microseconds correlate every view. Raw session version 1 remains canonical;
+decoded series, comparisons, and exports are derived on demand and never persisted. See
+[Diagnostic investigation workflows](INVESTIGATION.md).

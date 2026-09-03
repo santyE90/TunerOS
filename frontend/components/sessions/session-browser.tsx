@@ -150,8 +150,16 @@ export function SessionBrowser() {
             >
               {replaying ? "Starting replay…" : "Replay session"}
             </button>
+            <button
+              type="button"
+              className="investigate-button"
+              disabled={!selected.dbc_compatible}
+              onClick={() => router.push(`/sessions/${selected.session_id}/investigate`)}
+            >
+              Investigate session
+            </button>
             <p className="replay-note">
-              Full unpaced replay · no seek, pacing, or simulator control
+              Replay feeds the active source. Investigation performs isolated bounded analysis.
             </p>
             {error === null ? null : <p className="session-error" role="alert">{error}</p>}
           </>

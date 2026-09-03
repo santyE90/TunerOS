@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
@@ -28,6 +29,7 @@ import {
   formatDiagnosticStatus,
   selectedDiagnostic,
 } from "../../lib/diagnostics/state";
+import { buildInvestigationHref } from "../../lib/investigation/state";
 
 const REFRESH_INTERVAL_MILLISECONDS = 1_000;
 
@@ -82,6 +84,7 @@ export function DiagnosticsWorkspace() {
   const selected = selectedDiagnostic(dtcs, selectedCode);
   const selectedFreezeCode = selected?.definition.code ?? null;
   const selectedHasFreezeFrame = selected?.freeze_frame_available ?? false;
+  const investigationSessionId = summary?.source.mode === "replay" ? summary.source.session_id : null;
 
   useEffect(() => {
     let active = true;
@@ -169,8 +172,8 @@ export function DiagnosticsWorkspace() {
       </section>
 
       <div className="diagnostic-investigation-grid">
-        <DiagnosticDetail dtc={selected} clearing={clearing} onClear={() => void clearSelected()} />
-        <DiagnosticTimeline events={events} />
+        <DiagnosticDetail dtc={selected} clearing={clearing} onClear={() => void clearSelected()} sessionId={investigationSessionId} />
+        <DiagnosticTimeline events={events} sessionId={investigationSessionId} />
       </div>
       <FreezeFramePanel
         frame={freezeFrame?.code === selectedFreezeCode ? freezeFrame : null}
@@ -193,7 +196,7 @@ function DiagnosticSummaryStrip({ summary }: Readonly<{ summary: DiagnosticSumma
   </section>;
 }
 
-function DiagnosticDetail({ dtc, clearing, onClear }: Readonly<{ dtc: DiagnosticTroubleCode | null; clearing: boolean; onClear: () => void }>) {
+function DiagnosticDetail({ dtc, clearing, onClear, sessionId }: Readonly<{ dtc: DiagnosticTroubleCode | null; clearing: boolean; onClear: () => void; sessionId: string | null }>) {
   if (dtc === null) return <section className="diagnostic-detail"><p>Select a DTC when diagnostic history exists.</p></section>;
   return <section className="diagnostic-detail">
     <span className={`diagnostic-status ${dtc.status}`}>{formatDiagnosticStatus(dtc.status)}</span>
@@ -205,14 +208,15 @@ function DiagnosticDetail({ dtc, clearing, onClear }: Readonly<{ dtc: Diagnostic
       <div><dt>Cleared</dt><dd className="mono">{formatDiagnosticTime(dtc.cleared_timestamp_microseconds)}</dd></div><div><dt>Freeze frame</dt><dd>{dtc.freeze_frame_available ? "Available" : "Not captured"}</dd></div>
     </dl>
     <div className="diagnostic-rule"><span>Activate</span><code>{dtc.definition.activation_description}</code><span>Recover</span><code>{dtc.definition.recovery_description}</code></div>
+    {sessionId === null ? <p className="investigation-note">Record this run to investigate historical evidence. Replay sources retain a safe session identity.</p> : <div className="diagnostic-investigation-actions"><Link href={buildInvestigationHref(sessionId, dtc.first_detected_timestamp_microseconds, dtc.definition.code)}>Investigate first detection</Link>{dtc.confirmed_timestamp_microseconds === null ? null : <Link href={buildInvestigationHref(sessionId, dtc.confirmed_timestamp_microseconds, dtc.definition.code)}>Investigate confirmation</Link>}{dtc.resolved_timestamp_microseconds === null ? null : <Link href={buildInvestigationHref(sessionId, dtc.resolved_timestamp_microseconds, dtc.definition.code)}>Investigate recovery</Link>}</div>}
     <button className="diagnostic-clear" type="button" disabled={!canClearDiagnostic(dtc) || clearing} onClick={onClear}>{clearing ? "Clearing…" : "Clear historical DTC"}</button>
     {dtc.status === "active" ? <small>Active conditions cannot be cleared.</small> : null}
   </section>;
 }
 
-function DiagnosticTimeline({ events }: Readonly<{ events: DiagnosticEvent[] }>) {
+function DiagnosticTimeline({ events, sessionId }: Readonly<{ events: DiagnosticEvent[]; sessionId: string | null }>) {
   return <section className="diagnostic-timeline"><div className="diagnostic-heading"><div><span className="section-kicker">Bounded transition history</span><h2>Event timeline</h2></div></div>
-    {events.length === 0 ? <p className="diagnostic-empty">No diagnostic transitions</p> : <ol>{events.toReversed().map((event) => <li key={event.sequence}><span className="mono">#{event.sequence}</span><div><strong>{formatDiagnosticEvent(event)}</strong><small>{event.code} · {formatDiagnosticTime(event.timestamp_microseconds)}</small></div></li>)}</ol>}
+    {events.length === 0 ? <p className="diagnostic-empty">No diagnostic transitions</p> : <ol>{events.toReversed().map((event) => <li key={event.sequence}><span className="mono">#{event.sequence}</span><div><strong>{formatDiagnosticEvent(event)}</strong><small>{event.code} · {formatDiagnosticTime(event.timestamp_microseconds)}</small>{sessionId === null ? null : <Link href={buildInvestigationHref(sessionId, event.timestamp_microseconds, event.code)}>Investigate</Link>}</div></li>)}</ol>}
   </section>;
 }
 

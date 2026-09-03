@@ -3,11 +3,16 @@ import type {
   CanExplorerStatistics,
   CanMessageStatistics,
   CanWebSocketEvent,
+  DiagnosticDefinition,
   DiagnosticEvent,
   DiagnosticFreezeFrame,
   DiagnosticSummary,
   DiagnosticTroubleCode,
+  DiagnosticStateAtTime,
   InitialSnapshotEvent,
+  InvestigationComparison,
+  InvestigationResult,
+  InvestigationSignalSummary,
   MessageFrameCount,
   ServiceStateEvent,
   SessionDetail,
@@ -163,7 +168,7 @@ function isDiagnosticStatus(value: unknown): boolean {
   return ["pending", "active", "historical", "cleared"].includes(String(value));
 }
 
-function isDiagnosticDefinition(value: unknown): boolean {
+function isDiagnosticDefinition(value: unknown): value is DiagnosticDefinition {
   return (
     isRecord(value) &&
     typeof value.code === "string" &&
@@ -178,6 +183,91 @@ function isDiagnosticDefinition(value: unknown): boolean {
     isInteger(value.recovery_duration_microseconds) &&
     typeof value.activation_description === "string" &&
     typeof value.recovery_description === "string"
+  );
+}
+
+function isDiagnosticFreezeFrame(value: unknown): value is DiagnosticFreezeFrame {
+  return (
+    isRecord(value) &&
+    typeof value.code === "string" &&
+    isInteger(value.capture_timestamp_microseconds) &&
+    isInteger(value.telemetry_frame_sequence) &&
+    Array.isArray(value.signals) &&
+    value.signals.every(isFreezeFrameSignal)
+  );
+}
+
+function isInvestigationSummary(value: unknown): value is InvestigationSignalSummary {
+  return (
+    isRecord(value) &&
+    isSignalKey(value.key) &&
+    ["numeric", "boolean", "unobserved"].includes(String(value.value_type)) &&
+    isInteger(value.observation_count) &&
+    (value.first === null || typeof value.first === "number" || typeof value.first === "boolean") &&
+    (value.last === null || typeof value.last === "number" || typeof value.last === "boolean") &&
+    (value.minimum === null || typeof value.minimum === "number") &&
+    (value.maximum === null || typeof value.maximum === "number") &&
+    (value.mean === null || typeof value.mean === "number") &&
+    Array.isArray(value.distinct_values) &&
+    value.distinct_values.every(
+      (item) => typeof item === "number" || typeof item === "boolean",
+    )
+  );
+}
+
+function isDiagnosticStateAtTime(value: unknown): value is DiagnosticStateAtTime {
+  return (
+    isRecord(value) &&
+    isDiagnosticDefinition(value.definition) &&
+    (value.status === "absent" || isDiagnosticStatus(value.status)) &&
+    (value.record === null || isDiagnosticTroubleCode(value.record))
+  );
+}
+
+function isInvestigation(value: unknown): value is InvestigationResult {
+  if (!isRecord(value) || !isSessionDetail(value.session) || !isRecord(value.window)) return false;
+  const window = value.window;
+  return (
+    isInteger(window.requested_center_timestamp_microseconds) &&
+    isInteger(window.center_timestamp_microseconds) &&
+    isInteger(window.requested_before_microseconds) &&
+    isInteger(window.requested_after_microseconds) &&
+    isInteger(window.start_timestamp_microseconds) &&
+    isInteger(window.end_timestamp_microseconds) &&
+    isInteger(window.duration_microseconds) &&
+    Array.isArray(value.available_signals) &&
+    value.available_signals.every(isSignalDefinition) &&
+    Array.isArray(value.selected_signals) &&
+    value.selected_signals.every(isSignalKey) &&
+    Array.isArray(value.start_context) &&
+    value.start_context.every(isSignalSample) &&
+    Array.isArray(value.raw_frames) &&
+    value.raw_frames.every(isCanFrame) &&
+    Array.isArray(value.telemetry_series) &&
+    value.telemetry_series.every(
+      (series) =>
+        isRecord(series) &&
+        isSignalDefinition(series.definition) &&
+        Array.isArray(series.samples) &&
+        series.samples.every(isSignalSample),
+    ) &&
+    Array.isArray(value.signal_summaries) &&
+    value.signal_summaries.every(isInvestigationSummary) &&
+    Array.isArray(value.diagnostic_events) &&
+    value.diagnostic_events.every(isDiagnosticEvent) &&
+    Array.isArray(value.diagnostic_states_at_center) &&
+    value.diagnostic_states_at_center.every(isDiagnosticStateAtTime) &&
+    Array.isArray(value.freeze_frames_at_center) &&
+    value.freeze_frames_at_center.every(isDiagnosticFreezeFrame) &&
+    isRecord(value.statistics) &&
+    isInteger(value.statistics.raw_frame_count) &&
+    isInteger(value.statistics.decoded_signal_update_count) &&
+    isInteger(value.statistics.diagnostic_event_count) &&
+    isInteger(value.statistics.window_duration_microseconds) &&
+    Array.isArray(value.statistics.selected_signal_counts) &&
+    value.statistics.selected_signal_counts.every(
+      (item) => isRecord(item) && isSignalKey(item.key) && isInteger(item.count),
+    )
   );
 }
 
@@ -434,17 +524,42 @@ export function parseDiagnosticEvents(value: unknown): DiagnosticEvent[] {
 }
 
 export function parseDiagnosticFreezeFrame(value: unknown): DiagnosticFreezeFrame {
-  if (
-    !isRecord(value) ||
-    typeof value.code !== "string" ||
-    !isInteger(value.capture_timestamp_microseconds) ||
-    !isInteger(value.telemetry_frame_sequence) ||
-    !Array.isArray(value.signals) ||
-    !value.signals.every(isFreezeFrameSignal)
-  ) {
+  if (!isDiagnosticFreezeFrame(value)) {
     throw new Error("Backend returned an invalid diagnostic freeze frame");
   }
   return value as unknown as DiagnosticFreezeFrame;
+}
+
+export function parseInvestigation(value: unknown): InvestigationResult {
+  if (!isInvestigation(value)) {
+    throw new Error("Backend returned invalid investigation evidence");
+  }
+  return value;
+}
+
+export function parseInvestigationComparison(value: unknown): InvestigationComparison {
+  if (
+    !isRecord(value) ||
+    !isInvestigation(value.primary) ||
+    !isInvestigation(value.baseline) ||
+    !Array.isArray(value.signal_comparisons) ||
+    !value.signal_comparisons.every(
+      (item) =>
+        isRecord(item) &&
+        isSignalKey(item.key) &&
+        isInvestigationSummary(item.primary) &&
+        isInvestigationSummary(item.baseline) &&
+        (item.mean_difference === null || typeof item.mean_difference === "number"),
+    ) ||
+    !isNullableString(value.diagnostic_code) ||
+    (value.primary_has_diagnostic_event !== null &&
+      typeof value.primary_has_diagnostic_event !== "boolean") ||
+    (value.baseline_has_diagnostic_event !== null &&
+      typeof value.baseline_has_diagnostic_event !== "boolean")
+  ) {
+    throw new Error("Backend returned invalid investigation comparison evidence");
+  }
+  return value as unknown as InvestigationComparison;
 }
 
 export function parseSessions(value: unknown): SessionSummary[] {

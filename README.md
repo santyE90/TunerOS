@@ -7,7 +7,7 @@ and a browser interface. The first reference vehicle is a 2010 BMW E90 335i with
 engine.
 
 > **Current status:** Phase 0, Phases 1A–1C, Phases 2A–2C, Phase 3A, Phases 4A–4B,
-> Phases 5A–5B, Phase 6A, and Phases 7A–7B are complete. C++ provides
+> Phases 5A–5B, Phase 6A, Phases 7A–7B, and Phase 8A are complete. C++ provides
 > deterministic vehicle simulation, independent simulated DME and DSC publication, globally ordered
 > synthetic Classic CAN, and in-memory transport. A versioned binary TCP loopback gateway carries
 > the combined raw bus live into
@@ -25,9 +25,13 @@ engine.
 > REST-only Diagnostics workspace. Replay regenerates the same diagnostic state from raw frames.
 > Four deterministic simulator-side synthetic faults validate physical and sensor effects through
 > existing CAN, telemetry, diagnostics, freeze-frame, recording, and replay boundaries.
+> Historical diagnostic investigation correlates bounded recorded-session raw CAN, exact decoded
+> observations, DTC state/events, and freeze frames. It supports explicit compatible healthy-
+> baseline comparison and deterministic backend JSON evidence export without mutating replay.
 > These definitions are not authentic BMW traffic. Database indexing, advanced playback controls,
-> CAN transmission, a fault-control UI/API, authentic OBD/UDS diagnostics, tuning, physical CAN,
-> ML, authentication, and general simulator controls are not implemented.
+> persistent session indexing, advanced waveform tooling, CAN transmission, a fault-control UI/API,
+> authentic OBD/UDS diagnostics, tuning, physical CAN, ML, authentication, and general simulator
+> controls are not implemented.
 
 ## Architecture at a glance
 
@@ -41,6 +45,7 @@ live gateway or raw session <- RawCanFrame <-----------------------+
                                   +-> CanExplorer -> raw REST/WebSocket -> CAN page
                                   +-> DBC -> TelemetryEngine -> telemetry REST/WebSocket -> dashboard
                                                            +-> DiagnosticEngine -> REST -> Diagnostics page
+raw session -> isolated InvestigationService -> investigation REST -> investigation workspace
 ```
 
 CAN is the required source-of-truth boundary for future frontend telemetry; the simulator will not
@@ -211,6 +216,17 @@ preserve canonical physical truth. There is no browser or backend fault-control 
 runs record as ordinary raw-CAN sessions and replay their diagnostics without fault metadata or a
 running simulator. See [Fault injection](docs/FAULT_INJECTION.md).
 
+## Historical diagnostic investigation
+
+Open **Sessions** and choose **Investigate session**, or follow an **Investigate** link from a DTC or
+event while observing replay. `/sessions/{uuid}/investigate` uses simulation-time URL state and an
+isolated bounded scan of the validated raw artifact. The workspace correlates telemetry plots, a
+shared latest-at-or-before cursor, nearby raw CAN and frame detail, diagnostic transitions, and
+existing freeze-frame evidence. An explicitly selected compatible session can be overlaid as a
+healthy baseline around its own center, with simple deterministic statistics. **Export Evidence**
+downloads format-versioned deterministic JSON from the backend. Replay remains a separate active-
+source workflow. See [Diagnostic investigation workflows](docs/INVESTIGATION.md).
+
 ## PostgreSQL
 
 Create a local environment file, review its development-only values, then start PostgreSQL:
@@ -245,4 +261,5 @@ database.
 - [Session recording and replay](docs/SESSIONS.md)
 - [Diagnostics direction](docs/DIAGNOSTICS.md)
 - [Synthetic fault injection](docs/FAULT_INJECTION.md)
+- [Diagnostic investigation workflows](docs/INVESTIGATION.md)
 - [Architecture decisions](docs/DECISIONS.md)

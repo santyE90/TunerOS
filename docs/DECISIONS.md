@@ -91,5 +91,12 @@ a dated superseding entry.
 | Preserve exact no-fault output | Empty fault configuration selects the established equations, observations, CAN layouts, schedules, and counts. |
 | Persist fault runs as raw CAN only | Version-one sessions gain no fault or DTC fields; replay reconstructs diagnostics without fault metadata or a simulator. |
 | Keep Phase 7B fault control CLI-only | Fixed pre-run configuration is deterministic and bounded; no browser or backend runtime mutation API is justified yet. |
+| Isolate historical investigation from the active service | Each query owns its decoder, telemetry, diagnostics, and raw annotation state, so analysis cannot reset or broadcast through the live/replay service. |
+| Correlate investigation evidence only by simulation microseconds | Session timestamps are authoritative; browser, wall, and replay-processing time cannot affect analysis. |
+| Scan raw sessions from the beginning for investigation | Pre-window latest values and diagnostic persistence must be reconstructed correctly; only bounded result evidence is retained and persistent indexing remains deferred. |
+| Keep raw sessions canonical during investigation | No decoded telemetry, DTC state, export, or sidecar is persisted; every result follows the established raw CAN to DBC to telemetry to diagnostics chain. |
+| Align comparisons by explicit relative centers | Independently selected primary and baseline centers preserve observations without wall-time or automatic semantic/event matching. |
+| Use latest-at-or-before cursor semantics without interpolation | Exact observed samples remain distinguishable from estimated values in engineering evidence. |
+| Generate deterministic JSON evidence in the backend | Format-versioned bounded exports contain no wall-clock creation time or filesystem path; React does not recreate canonical evidence and PDF is deferred. |
 | Avoid unnecessary distributed or units infrastructure | Message brokers, cloud services, and a dimensional-analysis library add no Phase 0 engineering value. |
 | Defer persistence frameworks and schemas | ORMs, database migrations, brokers, and unrelated application infrastructure should follow concrete requirements. |

@@ -178,3 +178,14 @@ The implemented Raw CAN Explorer remains read-only and bounded. Session playback
 wall-clock pacing, pause, seek, scrub, playback-rate control, CSV export, persisted diagnostics, database
 indexing, PostgreSQL session storage, or browser-side recording. Those are separate future
 boundaries.
+
+## Replay versus investigation
+
+Replay and investigation consume the same validated version-one raw artifact for different purposes.
+Replay resets the active `TelemetryService` and reproduces the entire source through the existing
+telemetry, CAN, diagnostic, REST, and WebSocket views. Investigation leaves that service unchanged:
+an isolated `InvestigationService` streams from session start, reconstructs DBC telemetry and
+diagnostic persistence, and returns only a bounded window around an integer simulation timestamp.
+The Sessions page therefore offers separate **Replay session** and **Investigate session** actions.
+Investigation never writes an export or decoded sidecar into `.tuneros`; see
+[Diagnostic investigation workflows](INVESTIGATION.md).

@@ -21,6 +21,7 @@ Status notation: **complete** is validated foundation; **planned** is not implem
 | 6A | Raw CAN Explorer | **Complete** |
 | 7A | Diagnostics & DTC Foundation | **Complete** |
 | 7B | Fault Injection & Diagnostic Validation | **Complete** |
+| 8A | Diagnostic Investigation Workflows | **Complete** |
 | 9 | Expanded Fault Library & Effects | Planned |
 | 10 | Engine Model Expansion | Planned |
 | 11 | Calibration & Tuning | Planned |
@@ -103,9 +104,14 @@ physical-versus-sensor observation separation, a CLI-only overlay independent of
 end-to-end validation through unchanged CAN/DBC/telemetry/diagnostics/session contracts. Fault raw
 sessions replay exact diagnostic state without persisting fault identity or derived DTC data.
 
-The recommended next step is Phase 8A, Diagnostic Investigation Workflows. It should build on the
-validated evidence chain with session-to-event navigation and focused comparison/export tools while
-keeping vehicle control, authentic diagnostic protocols, and calibration work in separate phases.
+Phase 8A adds isolated, bounded, session-first investigation: raw and decoded evidence, diagnostic
+state at an integer simulation timestamp, freeze-frame/event correlation, local cursor inspection,
+explicit healthy-session comparison, and deterministic JSON export. Version-one raw sessions remain
+canonical and no active source is mutated.
+
+The recommended next step is Phase 8B, Investigation Usability and Session Indexing Contracts. It
+should first measure larger physical-CAN-like artifacts, then define a trustworthy optional index
+and richer waveform navigation without changing canonical raw evidence or introducing tuning.
 
 Further ECU behavior, physical CAN, authentic vehicle diagnostics, calibration behavior, and frontend product work
 remain later phases. A later phase begins only after its required contracts and authenticity

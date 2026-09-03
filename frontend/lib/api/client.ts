@@ -8,6 +8,8 @@ import type {
   DiagnosticStatus,
   DiagnosticSummary,
   DiagnosticTroubleCode,
+  InvestigationComparison,
+  InvestigationResult,
   SignalDefinition,
   SignalHistoryResponse,
   SignalResponse,
@@ -28,6 +30,8 @@ import {
   parseDiagnosticEvents,
   parseDiagnosticFreezeFrame,
   parseDiagnosticSummary,
+  parseInvestigation,
+  parseInvestigationComparison,
   parseCatalog,
   parseSessionDetail,
   parseSessionReplay,
@@ -172,6 +176,67 @@ export async function startSessionReplay(sessionId: string): Promise<SessionRepl
   return parseSessionReplay(
     await postJson(`/api/v1/sessions/${encodeURIComponent(sessionId)}/replay`),
   );
+}
+
+export interface InvestigationQuery {
+  centerMicroseconds?: number;
+  beforeMicroseconds?: number;
+  afterMicroseconds?: number;
+  signals?: string[];
+  diagnosticCode?: string;
+  baselineSessionId?: string;
+  baselineCenterMicroseconds?: number;
+}
+
+function investigationParameters(query: InvestigationQuery): URLSearchParams {
+  const parameters = new URLSearchParams();
+  if (query.centerMicroseconds !== undefined) {
+    parameters.set("center_us", String(query.centerMicroseconds));
+  }
+  if (query.beforeMicroseconds !== undefined) {
+    parameters.set("before_us", String(query.beforeMicroseconds));
+  }
+  if (query.afterMicroseconds !== undefined) {
+    parameters.set("after_us", String(query.afterMicroseconds));
+  }
+  for (const signal of query.signals ?? []) parameters.append("signal", signal);
+  if (query.diagnosticCode !== undefined) parameters.set("code", query.diagnosticCode);
+  if (query.baselineSessionId !== undefined) {
+    parameters.set("baseline_session_id", query.baselineSessionId);
+  }
+  if (query.baselineCenterMicroseconds !== undefined) {
+    parameters.set("baseline_center_us", String(query.baselineCenterMicroseconds));
+  }
+  return parameters;
+}
+
+function investigationPath(sessionId: string, suffix: string, query: InvestigationQuery): string {
+  const parameters = investigationParameters(query);
+  const queryString = parameters.size === 0 ? "" : `?${parameters.toString()}`;
+  return `/api/v1/sessions/${encodeURIComponent(sessionId)}/investigation${suffix}${queryString}`;
+}
+
+export async function fetchInvestigation(
+  sessionId: string,
+  query: InvestigationQuery,
+): Promise<InvestigationResult> {
+  return parseInvestigation(await getJson(investigationPath(sessionId, "", query)));
+}
+
+export async function fetchInvestigationComparison(
+  sessionId: string,
+  query: InvestigationQuery,
+): Promise<InvestigationComparison> {
+  return parseInvestigationComparison(
+    await getJson(investigationPath(sessionId, "/compare", query)),
+  );
+}
+
+export function investigationExportUrl(
+  sessionId: string,
+  query: InvestigationQuery,
+): string {
+  return `${TUNEROS_API_URL}${investigationPath(sessionId, "/export", query)}`;
 }
 
 export async function fetchSignalCatalog(): Promise<SignalDefinition[]> {

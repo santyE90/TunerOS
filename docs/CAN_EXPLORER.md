@@ -153,3 +153,9 @@ decoding, and still cannot inject or edit frames.
 Phase 6A does not transmit, edit, inject, or spoof CAN frames; edit decoded signals; upload/edit
 DBCs; interpret anomalies or DTCs; access physical CAN; simulate arbitration/CRC/ACK; persist raw
 browser history; or add replay pause, seek, scrub, speed, or wall-clock pacing.
+
+Phase 8A reuses the Explorer's raw annotation and formatting semantics inside a bounded recorded-
+session investigation. Artifact sequence, timestamps, ID, DLC, payload, DBC message/source, and
+decoded signals retain the same meanings. This does not connect the live Explorer to the
+investigation service or alter its buffers; nearby frames are filtered locally from the already
+loaded investigation result. See [Diagnostic investigation workflows](INVESTIGATION.md).

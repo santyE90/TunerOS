@@ -151,3 +151,13 @@ Integration tests establish the expected fault-to-DTC mappings, but those mappin
 runtime fault code. Removal of charging and wheel-sensor faults reaches `HISTORICAL` only after the
 underlying decoded values normalize and the existing recovery timers complete. See
 [Fault injection](FAULT_INJECTION.md).
+
+## Recorded-session investigation
+
+Phase 8A reconstructs the same diagnostic catalog, lifecycle persistence, events, and immutable
+freeze frames from a validated raw session without starting replay. When Diagnostics is observing a
+replay, its explicit source UUID enables links from first detection, confirmation, recovery, and
+event timestamps to `/sessions/{uuid}/investigate`. Investigation captures DTC status after all raw
+frames at or before center, so an earlier timestamp does not incorrectly show final-session state.
+Live diagnostics without a safely finalized session show a recording requirement instead of
+guessing an artifact identity. See [Diagnostic investigation workflows](INVESTIGATION.md).

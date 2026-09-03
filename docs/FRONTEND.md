@@ -185,3 +185,24 @@ contracts, CAN transmission/editing, DBC editor, authentic BMW/OBD/UDS communica
 lamps, tune maps, scenario controls, authentication, PostgreSQL session or DTC indexing,
 seek/scrub/playback speed, browser-side recording, or physical CAN functionality. Fault-altered
 signals and resulting DTCs use these unchanged views naturally.
+
+## Historical investigation workspace
+
+Phase 8A adds `/sessions/[sessionId]/investigate` as a REST-only recorded-session workspace; it does
+not use either live WebSocket or mutate provider/source state. Sessions links every complete,
+compatible artifact to it. Diagnostics links replay-backed first-detection, confirmation, recovery,
+and event timestamps using the explicit source session UUID. Live-only diagnostics explain that a
+recorded session is required.
+
+Validated URL state includes integer `t`, bounded `before`/`after`, optional `code`, up to six
+canonical `signal` values, and optional `baseline`/`baseline_t`. An omitted center is resolved by the
+backend and canonicalized into the URL. The page labels **Recorded session**, displays artifact
+metadata and actual bounds, and synchronizes a native timeline, lightweight SVG telemetry plots,
+diagnostic state/events, existing freeze-frame evidence, and local raw-CAN inspection.
+
+The cursor is integer simulation time. Values are the latest exact observation at or before it,
+without interpolation; raw frames within ±100 ms are filtered from the loaded response rather than
+refetched during movement. Frame detail uses existing CAN formatting and backend annotations. A
+compatible baseline uses an explicit center and shared relative-time chart axis; numeric sample
+statistics and neutral DTC-presence wording add no anomaly or causality claim. **Export Evidence**
+downloads deterministic backend JSON. See [Diagnostic investigation workflows](INVESTIGATION.md).

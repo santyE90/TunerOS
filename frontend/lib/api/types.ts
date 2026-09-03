@@ -258,6 +258,83 @@ export interface SessionReplayResponse {
   service_state: "running";
 }
 
+export interface InvestigationWindow {
+  requested_center_timestamp_microseconds: number;
+  center_timestamp_microseconds: number;
+  requested_before_microseconds: number;
+  requested_after_microseconds: number;
+  start_timestamp_microseconds: number;
+  end_timestamp_microseconds: number;
+  duration_microseconds: number;
+}
+
+export interface InvestigationSignalSeries {
+  definition: SignalDefinition;
+  samples: SignalSample[];
+}
+
+export interface InvestigationSignalSummary {
+  key: SignalKey;
+  value_type: "numeric" | "boolean" | "unobserved";
+  observation_count: number;
+  first: SignalValue | null;
+  last: SignalValue | null;
+  minimum: number | null;
+  maximum: number | null;
+  mean: number | null;
+  distinct_values: SignalValue[];
+}
+
+export interface DiagnosticStateAtTime {
+  definition: DiagnosticDefinition;
+  status: DiagnosticStatus | "absent";
+  record: DiagnosticTroubleCode | null;
+}
+
+export interface SelectedSignalCount {
+  key: SignalKey;
+  count: number;
+}
+
+export interface InvestigationStatistics {
+  raw_frame_count: number;
+  decoded_signal_update_count: number;
+  diagnostic_event_count: number;
+  selected_signal_counts: SelectedSignalCount[];
+  window_duration_microseconds: number;
+}
+
+export interface InvestigationResult {
+  session: SessionDetail;
+  window: InvestigationWindow;
+  available_signals: SignalDefinition[];
+  selected_signals: SignalKey[];
+  start_context: SignalSample[];
+  raw_frames: CanExplorerFrame[];
+  telemetry_series: InvestigationSignalSeries[];
+  signal_summaries: InvestigationSignalSummary[];
+  diagnostic_events: DiagnosticEvent[];
+  diagnostic_states_at_center: DiagnosticStateAtTime[];
+  freeze_frames_at_center: DiagnosticFreezeFrame[];
+  statistics: InvestigationStatistics;
+}
+
+export interface SignalComparison {
+  key: SignalKey;
+  primary: InvestigationSignalSummary;
+  baseline: InvestigationSignalSummary;
+  mean_difference: number | null;
+}
+
+export interface InvestigationComparison {
+  primary: InvestigationResult;
+  baseline: InvestigationResult;
+  signal_comparisons: SignalComparison[];
+  diagnostic_code: string | null;
+  primary_has_diagnostic_event: boolean | null;
+  baseline_has_diagnostic_event: boolean | null;
+}
+
 export interface SignalResponse {
   definition: SignalDefinition;
   sample: SignalSample | null;

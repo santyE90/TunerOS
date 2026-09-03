@@ -230,3 +230,26 @@ fault identity enters an API contract. Diagnostic state is in-memory and regener
 it is not added to raw session artifacts. Phase 5B keeps raw payloads inside the session layer and
 exposes metadata rather than filesystem paths. See
 [Frontend dashboard](FRONTEND.md) and [Session recording and replay](SESSIONS.md).
+
+## Recorded-session investigation routes
+
+Phase 8A adds REST-only, session-scoped historical analysis. None of these routes changes the active
+live/replay source or sends a WebSocket event.
+
+| Route | Meaning |
+| --- | --- |
+| `GET /api/v1/sessions/{session_id}/investigation` | One isolated bounded investigation result |
+| `GET /api/v1/sessions/{session_id}/investigation/compare` | Primary result, compatible baseline result, and selected-signal statistics |
+| `GET /api/v1/sessions/{session_id}/investigation/export` | Download deterministic format-versioned JSON evidence |
+
+All accept optional non-negative `center_us`, `before_us`, `after_us`, repeated canonical
+`signal=MessageName.SignalName`, and `code`. Omitted center selects the session midpoint; spans
+default to 2,000,000 microseconds each. At most six unique signals and 30,000,000 total requested
+microseconds are allowed. Actual edges clamp to recorded bounds and are returned. A result exceeding
+8,192 raw frames returns `413` instead of truncation.
+
+Compare requires `baseline_session_id` and optionally accepts `baseline_center_us`; export accepts
+the same optional baseline fields. Baseline compatibility requires identical DBC SHA-256, CAN
+network identity, and vehicle profile. Invalid input is `422`, missing UUID is `404`, and artifact or
+compatibility conflicts are `409`. Responses contain no session filesystem path. See
+[Diagnostic investigation workflows](INVESTIGATION.md).

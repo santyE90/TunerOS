@@ -7,6 +7,7 @@ from typing import Annotated
 
 from fastapi import FastAPI, HTTPException, Path, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from tuneros.api.models import (
     CanExplorerFrameResponse,
@@ -17,6 +18,9 @@ from tuneros.api.models import (
     DiagnosticFreezeFrameResponse,
     DiagnosticSummaryResponse,
     DiagnosticTroubleCodeResponse,
+    InvestigationComparisonResponse,
+    InvestigationEvidenceExportResponse,
+    InvestigationResponse,
     ServiceStateEventResponse,
     SessionDetailResponse,
     SessionReplayResponse,
@@ -42,6 +46,9 @@ from tuneros.api.serialization import (
     serialize_dtc,
     serialize_initial_can_snapshot,
     serialize_initial_snapshot,
+    serialize_investigation,
+    serialize_investigation_comparison,
+    serialize_investigation_export,
     serialize_sample,
     serialize_service_state,
     serialize_session_detail,
@@ -53,8 +60,17 @@ from tuneros.api.serialization import (
 )
 from tuneros.diagnostics import (
     DiagnosticClearError,
+    DiagnosticError,
     DiagnosticStatus,
     UnknownDiagnosticCodeError,
+)
+from tuneros.investigation import (
+    DEFAULT_WINDOW_AFTER_MICROSECONDS,
+    DEFAULT_WINDOW_BEFORE_MICROSECONDS,
+    InvestigationCompatibilityError,
+    InvestigationLimitError,
+    InvestigationQueryError,
+    InvestigationService,
 )
 from tuneros.session import SessionCatalog, SessionError
 from tuneros.telemetry import (
@@ -92,6 +108,7 @@ def create_app(
         raise ValueError("pass service or config, not both")
     telemetry_service = service or TelemetryService(config)
     sessions = session_catalog or SessionCatalog()
+    investigations = InvestigationService(sessions)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -165,6 +182,31 @@ def create_app(
             definition=serialize_definition(telemetry_service.catalog.require(key)),
             samples=[serialize_sample(sample) for sample in telemetry_service.history(key, limit)],
         )
+
+    def investigation_signals(values: list[str] | None) -> tuple[SignalKey, ...] | None:
+        if values is None:
+            return None
+        keys = []
+        for value in values:
+            message_name, separator, signal_name = value.partition(".")
+            if not separator or not message_name or not signal_name:
+                raise HTTPException(
+                    status_code=422,
+                    detail="signal must use canonical MessageName.SignalName form",
+                )
+            keys.append(SignalKey(message_name, signal_name))
+        return tuple(keys)
+
+    def investigation_error(error: Exception) -> HTTPException:
+        if isinstance(error, KeyError):
+            return HTTPException(status_code=404, detail=str(error))
+        if isinstance(error, InvestigationCompatibilityError):
+            return HTTPException(status_code=409, detail=str(error))
+        if isinstance(error, InvestigationLimitError):
+            return HTTPException(status_code=413, detail=str(error))
+        if isinstance(error, SessionError):
+            return HTTPException(status_code=409, detail=str(error))
+        return HTTPException(status_code=422, detail=str(error))
 
     @app.get(f"{API_PREFIX}/status", response_model=TelemetryStatusResponse)
     def get_status() -> TelemetryStatusResponse:
@@ -333,6 +375,120 @@ def create_app(
         return SessionReplayResponse(
             session_id=reader.manifest.session_id,
             session_name=reader.manifest.name,
+        )
+
+    @app.get(
+        f"{API_PREFIX}/sessions/{{session_id}}/investigation",
+        response_model=InvestigationResponse,
+    )
+    def get_session_investigation(
+        session_id: str,
+        center_us: Annotated[int | None, Query(ge=0)] = None,
+        before_us: Annotated[int, Query(ge=0)] = DEFAULT_WINDOW_BEFORE_MICROSECONDS,
+        after_us: Annotated[int, Query(ge=0)] = DEFAULT_WINDOW_AFTER_MICROSECONDS,
+        signal: Annotated[list[str] | None, Query()] = None,
+        code: str | None = None,
+    ) -> InvestigationResponse:
+        try:
+            result = investigations.investigate(
+                session_id,
+                center_timestamp_microseconds=center_us,
+                before_microseconds=before_us,
+                after_microseconds=after_us,
+                selected_signals=investigation_signals(signal),
+                diagnostic_code=code,
+            )
+        except (
+            KeyError,
+            SessionError,
+            InvestigationQueryError,
+            InvestigationLimitError,
+            DiagnosticError,
+            TelemetrySchemaError,
+        ) as error:
+            raise investigation_error(error) from error
+        return serialize_investigation(result)
+
+    @app.get(
+        f"{API_PREFIX}/sessions/{{session_id}}/investigation/compare",
+        response_model=InvestigationComparisonResponse,
+    )
+    def compare_session_investigation(
+        session_id: str,
+        baseline_session_id: str,
+        center_us: Annotated[int | None, Query(ge=0)] = None,
+        baseline_center_us: Annotated[int | None, Query(ge=0)] = None,
+        before_us: Annotated[int, Query(ge=0)] = DEFAULT_WINDOW_BEFORE_MICROSECONDS,
+        after_us: Annotated[int, Query(ge=0)] = DEFAULT_WINDOW_AFTER_MICROSECONDS,
+        signal: Annotated[list[str] | None, Query()] = None,
+        code: str | None = None,
+    ) -> InvestigationComparisonResponse:
+        try:
+            result = investigations.compare(
+                session_id,
+                baseline_session_id,
+                primary_center_timestamp_microseconds=center_us,
+                baseline_center_timestamp_microseconds=baseline_center_us,
+                before_microseconds=before_us,
+                after_microseconds=after_us,
+                selected_signals=investigation_signals(signal),
+                diagnostic_code=code,
+            )
+        except (
+            KeyError,
+            SessionError,
+            InvestigationQueryError,
+            InvestigationLimitError,
+            InvestigationCompatibilityError,
+            DiagnosticError,
+            TelemetrySchemaError,
+        ) as error:
+            raise investigation_error(error) from error
+        return serialize_investigation_comparison(result)
+
+    @app.get(
+        f"{API_PREFIX}/sessions/{{session_id}}/investigation/export",
+        response_model=InvestigationEvidenceExportResponse,
+    )
+    def export_session_investigation(
+        session_id: str,
+        baseline_session_id: str | None = None,
+        center_us: Annotated[int | None, Query(ge=0)] = None,
+        baseline_center_us: Annotated[int | None, Query(ge=0)] = None,
+        before_us: Annotated[int, Query(ge=0)] = DEFAULT_WINDOW_BEFORE_MICROSECONDS,
+        after_us: Annotated[int, Query(ge=0)] = DEFAULT_WINDOW_AFTER_MICROSECONDS,
+        signal: Annotated[list[str] | None, Query()] = None,
+        code: str | None = None,
+    ) -> JSONResponse:
+        try:
+            result = investigations.export(
+                session_id,
+                baseline_session_id=baseline_session_id,
+                center_timestamp_microseconds=center_us,
+                baseline_center_timestamp_microseconds=baseline_center_us,
+                before_microseconds=before_us,
+                after_microseconds=after_us,
+                selected_signals=investigation_signals(signal),
+                diagnostic_code=code,
+            )
+        except (
+            KeyError,
+            SessionError,
+            InvestigationQueryError,
+            InvestigationLimitError,
+            InvestigationCompatibilityError,
+            DiagnosticError,
+            TelemetrySchemaError,
+        ) as error:
+            raise investigation_error(error) from error
+        response = serialize_investigation_export(result)
+        filename = (
+            f"tuneros-investigation-{session_id}-"
+            f"{response.investigation.window.center_timestamp_microseconds}.json"
+        )
+        return JSONResponse(
+            content=response.model_dump(mode="json"),
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         )
 
     @app.get(f"{API_PREFIX}/catalog", response_model=list[SignalDefinitionResponse])
