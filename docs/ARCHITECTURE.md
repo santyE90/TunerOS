@@ -4,7 +4,9 @@
 
 ```text
 VehicleProfile + InitialConditions + Scenario + Environment + SimulationClock
+                         + FaultConfiguration
                          -> Vehicle Model (authoritative VehicleState)
+                         -> fault-aware sensor observation
                          -> simulated ECUs (controller/ECU state)
                          -> binary CAN frames
                          -> CAN transport
@@ -214,3 +216,20 @@ Diagnostics reference canonical signal keys and freshness. They do not parse raw
 DBC scaling/history, access `VehicleState`, or inspect scenario identity. DTC records, bounded
 events, and freeze frames are derived in memory and are regenerated—not persisted—during raw session
 replay. See [Diagnostics](DIAGNOSTICS.md).
+
+## Simulator-side fault boundary
+
+Phase 7B keeps faults upstream of every observation boundary. Physical/system faults select
+alternate deterministic vehicle-response targets; sensor faults alter only the small ECU-facing
+`SensorObservation`. Diagnostics, telemetry, DBC decode, raw sessions, and frontend code receive no
+fault identity or side channel.
+
+```text
+FaultConfiguration -> VehicleSimulation / SensorObservation -> DME + DSC -> RawCanFrame
+                                                                      +-> SessionRecorder
+                                                                      +-> CAN Explorer
+                                                                      +-> DBC -> Telemetry -> Diagnostics
+```
+
+Scenarios and faults are orthogonal configuration. No-fault execution retains the previous exact
+state and CAN contracts. See [Fault injection](FAULT_INJECTION.md).

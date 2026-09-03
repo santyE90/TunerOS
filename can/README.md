@@ -22,5 +22,11 @@ single-client, blocking, unpaced, and local-development-only; it is not physical
 Phase 3A adds an independent observation-only simulated DSC, two synthetic motion publications, and
 `VehicleNetworkPublisher`. DME and DSC collect due frames independently; the shared publisher sorts
 the combined set by arbitration ID before sending it through one transport. Wheel speeds are derived
-equally from canonical vehicle speed. No ABS, traction, braking, yaw control, faults, or diagnostics
-are modeled, and the Phase 2C gateway protocol is unchanged.
+equally from canonical vehicle speed in no-fault operation. Phase 3A added no ABS, traction,
+braking, yaw control, faults, or diagnostics, and the Phase 2C gateway protocol is unchanged.
+
+Phase 7B adds simulator-side physical effects and a compact sensor-observation boundary before the
+unchanged DME/DSC packers. A configured MAP or front-left wheel sensor bias changes only the
+corresponding ECU observation; no-fault wheel speeds remain equal. CAN IDs, layouts, periods, DBC,
+and the gateway protocol remain unchanged. See
+[`docs/FAULT_INJECTION.md`](../docs/FAULT_INJECTION.md).

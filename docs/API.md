@@ -223,9 +223,10 @@ Development CORS allows only `http://localhost:3000` and `http://127.0.0.1:3000`
 loopback-only, but Phase 4B provides no authentication, authorization, or TLS and must not be treated
 as a production deployment configuration.
 
-Fault injection, authentic OBD/UDS diagnostics, tuning, CAN transmission, simulator control,
-authentication, session database indexing, advanced playback controls, and physical CAN remain
-deferred. Diagnostic state is in-memory and regenerated during replay; it is not added to raw
-session artifacts. Phase 5B keeps raw payloads inside the session layer and exposes metadata rather
-than filesystem paths. See
+Backend/runtime fault mutation, authentic OBD/UDS diagnostics, tuning, CAN transmission, simulator
+control, authentication, session database indexing, advanced playback controls, and physical CAN
+remain deferred. Phase 7B faults are configured only when launching the separate C++ gateway; no
+fault identity enters an API contract. Diagnostic state is in-memory and regenerated during replay;
+it is not added to raw session artifacts. Phase 5B keeps raw payloads inside the session layer and
+exposes metadata rather than filesystem paths. See
 [Frontend dashboard](FRONTEND.md) and [Session recording and replay](SESSIONS.md).

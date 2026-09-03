@@ -1,19 +1,27 @@
 #include "tuneros/ecu/vehicle_network_simulation.hpp"
 
 #include <algorithm>
+#include <stdexcept>
 #include <utility>
 #include <vector>
 
 namespace tuneros::ecu {
 
 VehicleNetworkPublisher::VehicleNetworkPublisher(DmePublicationSchedule dme_schedule,
-                                                 DscPublicationSchedule dsc_schedule)
-    : dme_(dme_schedule), dsc_(dsc_schedule) {}
+                                                 DscPublicationSchedule dsc_schedule,
+                                                 simulator::FaultConfigurations faults)
+    : dme_(dme_schedule), dsc_(dsc_schedule), faults_(std::move(faults)) {
+  if (!simulator::are_valid(faults_)) {
+    throw std::invalid_argument(
+        "fault configurations require unique IDs and deactivation after activation");
+  }
+}
 
 void VehicleNetworkPublisher::observe_and_publish(const simulator::VehicleState& state,
                                                   canbus::CanTransport& transport) {
-  auto frames = dme_.collect_due_frames(state);
-  auto dsc_frames = dsc_.collect_due_frames(state);
+  const auto observation = simulator::observe_sensors(state, faults_);
+  auto frames = dme_.collect_due_frames(observation.dme_state);
+  auto dsc_frames = dsc_.collect_due_frames(state, observation.wheel_speeds_meters_per_second);
   frames.insert(frames.end(), dsc_frames.begin(), dsc_frames.end());
   std::sort(frames.begin(), frames.end(), [](const auto& left, const auto& right) {
     return left.arbitration_id < right.arbitration_id;
@@ -31,7 +39,8 @@ void VehicleNetworkPublisher::reset() noexcept {
 VehicleNetworkSimulation::VehicleNetworkSimulation(
     simulator::SimulationRunConfiguration configuration, DmePublicationSchedule dme_schedule,
     DscPublicationSchedule dsc_schedule)
-    : vehicle_simulation_(std::move(configuration)), publisher_(dme_schedule, dsc_schedule) {
+    : vehicle_simulation_(std::move(configuration)),
+      publisher_(dme_schedule, dsc_schedule, vehicle_simulation_.configuration().faults) {
   publish_current_state();
 }
 

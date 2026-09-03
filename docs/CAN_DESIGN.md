@@ -26,6 +26,12 @@ Phase 7A diagnostics operate after DBC decoding and telemetry aggregation. Diagn
 parse payloads or infer ECU ownership from arbitration IDs, and they do not change publication,
 transport, ordering, encoding, or DBC authority.
 
+Phase 7B fault injection is strictly upstream of ECU packing. Physical faults change simulated
+state evolution; sensor faults change selected ECU observations. Existing IDs `0x500`–`0x502` and
+`0x520`–`0x521`, DLCs, bit layouts, scaling, transmitter labels, DBC metadata, arbitration order,
+and scheduler periods remain unchanged. The Raw CAN Explorer naturally displays the resulting bytes
+without receiving fault metadata.
+
 Vehicle speed remains absent from DME. Phase 3A makes the simulated DSC its synthetic CAN publisher.
 The DSC derives four equal wheel speeds directly from vehicle speed because independent wheel physics
 does not exist yet; `VehicleState` is not expanded with redundant wheel fields.

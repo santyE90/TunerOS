@@ -180,7 +180,8 @@ the signal table scrolls rather than truncating engineering columns.
 
 Calibration and system tools remain labeled future navigation items. Sessions are filesystem-backed
 metadata and full unpaced replay only. CAN Explorer is read-only, and Diagnostics is an observation
-and historical-memory surface only: there is no fault injection, CAN transmission/editing, DBC
-editor, authentic BMW/OBD/UDS communication, warning lamps, tune maps, scenario controls,
-authentication, PostgreSQL session or DTC indexing, seek/scrub/playback speed, browser-side
-recording, or physical CAN functionality.
+and historical-memory surface only: there is no fault-control UI, fault identity in browser
+contracts, CAN transmission/editing, DBC editor, authentic BMW/OBD/UDS communication, warning
+lamps, tune maps, scenario controls, authentication, PostgreSQL session or DTC indexing,
+seek/scrub/playback speed, browser-side recording, or physical CAN functionality. Fault-altered
+signals and resulting DTCs use these unchanged views naturally.

@@ -20,7 +20,7 @@ Status notation: **complete** is validated foundation; **planned** is not implem
 | 5B | Raw CAN Session Recording & Deterministic Replay | **Complete** |
 | 6A | Raw CAN Explorer | **Complete** |
 | 7A | Diagnostics & DTC Foundation | **Complete** |
-| 7B | Fault Injection & Diagnostic Validation | Planned |
+| 7B | Fault Injection & Diagnostic Validation | **Complete** |
 | 9 | Expanded Fault Library & Effects | Planned |
 | 10 | Engine Model Expansion | Planned |
 | 11 | Calibration & Tuning | Planned |
@@ -98,10 +98,14 @@ freeze frames, explicit historical clear, replay regeneration, narrow REST resou
 `/diagnostics` workspace. Normal implemented scenarios remain fault-free. Diagnostic state is not
 persisted in canonical raw sessions, and no OEM diagnostic protocol or fault source is implied.
 
-The recommended next step is Phase 7B, Fault Injection & Diagnostic Validation. It should introduce
-small, explicit simulator-side fault controls and prove the complete vehicle behavior -> CAN -> DBC
--> telemetry -> DTC -> freeze frame -> replay path. It must preserve the Phase 7A observation
-boundary and keep every injected behavior synthetic and auditable.
+Phase 7B adds four fixed simulator-side synthetic faults, half-open simulation-time activation,
+physical-versus-sensor observation separation, a CLI-only overlay independent of scenarios, and
+end-to-end validation through unchanged CAN/DBC/telemetry/diagnostics/session contracts. Fault raw
+sessions replay exact diagnostic state without persisting fault identity or derived DTC data.
+
+The recommended next step is Phase 8A, Diagnostic Investigation Workflows. It should build on the
+validated evidence chain with session-to-event navigation and focused comparison/export tools while
+keeping vehicle control, authentic diagnostic protocols, and calibration work in separate phases.
 
 Further ECU behavior, physical CAN, authentic vehicle diagnostics, calibration behavior, and frontend product work
 remain later phases. A later phase begins only after its required contracts and authenticity

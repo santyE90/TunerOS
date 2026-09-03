@@ -26,16 +26,23 @@ canbus::CanFrame make_dsc_vehicle_motion_frame(const simulator::VehicleState& st
 }
 
 canbus::CanFrame make_dsc_wheel_speeds_frame(const simulator::VehicleState& state) {
+  return make_dsc_wheel_speeds_frame(
+      state, {state.vehicle_speed_meters_per_second, state.vehicle_speed_meters_per_second,
+              state.vehicle_speed_meters_per_second, state.vehicle_speed_meters_per_second});
+}
+
+canbus::CanFrame make_dsc_wheel_speeds_frame(
+    const simulator::VehicleState& state,
+    const std::array<double, 4>& wheel_speeds_meters_per_second) {
   canbus::CanFrame frame{
       .arbitration_id = kDscWheelSpeedsFrameId,
       .payload_length = kDscWheelSpeedsPayloadLength,
       .timestamp_microseconds = state.timestamp.microseconds,
   };
-  const auto speed = encode_speed(state.vehicle_speed_meters_per_second);
-  detail::pack_u16_little_endian(frame.payload, 0, speed);
-  detail::pack_u16_little_endian(frame.payload, 2, speed);
-  detail::pack_u16_little_endian(frame.payload, 4, speed);
-  detail::pack_u16_little_endian(frame.payload, 6, speed);
+  for (std::size_t index = 0; index < wheel_speeds_meters_per_second.size(); ++index) {
+    detail::pack_u16_little_endian(frame.payload, index * 2,
+                                   encode_speed(wheel_speeds_meters_per_second[index]));
+  }
   return frame;
 }
 

@@ -7,7 +7,7 @@ and a browser interface. The first reference vehicle is a 2010 BMW E90 335i with
 engine.
 
 > **Current status:** Phase 0, Phases 1A–1C, Phases 2A–2C, Phase 3A, Phases 4A–4B,
-> Phases 5A–5B, Phase 6A, and Phase 7A are complete. C++ provides
+> Phases 5A–5B, Phase 6A, and Phases 7A–7B are complete. C++ provides
 > deterministic vehicle simulation, independent simulated DME and DSC publication, globally ordered
 > synthetic Classic CAN, and in-memory transport. A versioned binary TCP loopback gateway carries
 > the combined raw bus live into
@@ -23,16 +23,20 @@ engine.
 > A deterministic Python diagnostic engine evaluates coherent decoded telemetry, maintains five
 > synthetic `TUN-*` DTC lifecycles with bounded events and immutable freeze frames, and exposes a
 > REST-only Diagnostics workspace. Replay regenerates the same diagnostic state from raw frames.
+> Four deterministic simulator-side synthetic faults validate physical and sensor effects through
+> existing CAN, telemetry, diagnostics, freeze-frame, recording, and replay boundaries.
 > These definitions are not authentic BMW traffic. Database indexing, advanced playback controls,
-> CAN transmission, fault injection, authentic OBD/UDS diagnostics, tuning, physical CAN,
-> authentication, and simulator controls are not implemented.
+> CAN transmission, a fault-control UI/API, authentic OBD/UDS diagnostics, tuning, physical CAN,
+> ML, authentication, and general simulator controls are not implemented.
 
 ## Architecture at a glance
 
 The current data path is:
 
 ```text
-live gateway or raw session -> RawCanFrame
+FaultConfiguration -> VehicleSimulation / SensorObservation -> simulated DME + DSC
+                                                                  |
+live gateway or raw session <- RawCanFrame <-----------------------+
                                   +-> SessionRecorder
                                   +-> CanExplorer -> raw REST/WebSocket -> CAN page
                                   +-> DBC -> TelemetryEngine -> telemetry REST/WebSocket -> dashboard
@@ -112,9 +116,11 @@ python -m tuneros.can.live_decode --port 45800
 ```
 
 Supported scenarios are `idle`, `cold-start`, `warmup`, and `city`; `--step-us` and `--duration-us`
-override run timing. The single-client server defaults to maximum speed, has no authentication or
-TLS, and binds only `127.0.0.1`. This gateway carries raw synthetic CAN rather than decoded telemetry
-and is not physical CAN.
+override run timing. Optional `--fault`, `--fault-at-us`, and `--fault-clear-at-us` arguments add one
+of four fixed synthetic fault effects without changing the selected scenario. Run `--help` for the
+stable names. The single-client server defaults to maximum speed, has no authentication or TLS, and
+binds only `127.0.0.1`. This gateway carries raw synthetic CAN rather than decoded telemetry and is
+not physical CAN.
 The live output now includes synthetic DME messages `0x500–0x502` and simulated DSC motion/wheel
 messages `0x520–0x521`; none are authentic BMW CAN definitions.
 
@@ -197,6 +203,14 @@ frames, and the bounded transition timeline. Only historical DTCs can be cleared
 five conservative synthetic TunerOS rules; it does not claim BMW DTC fidelity, inject faults, send
 diagnostic CAN traffic, or persist DTC records. See [Diagnostics](docs/DIAGNOSTICS.md).
 
+## Synthetic fault validation
+
+Phase 7B supports CLI-configured cooling degradation, charging failure, MAP sensor bias, and one
+front-left wheel-speed sensor bias. Fault timing is deterministic simulation time; sensor faults
+preserve canonical physical truth. There is no browser or backend fault-control endpoint. Fault
+runs record as ordinary raw-CAN sessions and replay their diagnostics without fault metadata or a
+running simulator. See [Fault injection](docs/FAULT_INJECTION.md).
+
 ## PostgreSQL
 
 Create a local environment file, review its development-only values, then start PostgreSQL:
@@ -230,4 +244,5 @@ database.
 - [Frontend dashboard](docs/FRONTEND.md)
 - [Session recording and replay](docs/SESSIONS.md)
 - [Diagnostics direction](docs/DIAGNOSTICS.md)
+- [Synthetic fault injection](docs/FAULT_INJECTION.md)
 - [Architecture decisions](docs/DECISIONS.md)

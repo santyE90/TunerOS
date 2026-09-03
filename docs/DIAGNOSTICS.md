@@ -136,3 +136,18 @@ Phase 7A adds no fault injection, authentic BMW diagnostics, OBD/UDS/ISO-TP requ
 diagnostic CAN traffic, MIL/CEL control, limp behavior, DTC persistence/database tables, session DTC
 caches, health score, anomaly detection, machine learning, tuning, CAN transmission, or physical
 CAN support.
+
+## Phase 7B fault-driven validation
+
+Phase 7B leaves every Phase 7A rule, threshold, persistence duration, lifecycle, ownership label,
+event, and freeze-frame contract unchanged. Four simulator-side synthetic faults validate:
+
+```text
+fault -> physical/sensor behavior -> existing CAN -> DBC -> telemetry -> diagnostic rule
+```
+
+The diagnostic package does not import, receive, query, or infer `FaultId` or fault configuration.
+Integration tests establish the expected fault-to-DTC mappings, but those mappings do not exist in
+runtime fault code. Removal of charging and wheel-sensor faults reaches `HISTORICAL` only after the
+underlying decoded values normalize and the existing recovery timers complete. See
+[Fault injection](FAULT_INJECTION.md).

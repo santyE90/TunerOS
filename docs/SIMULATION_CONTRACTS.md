@@ -380,9 +380,9 @@ Configuration remains separated by lifecycle and owner:
 | --- | --- | --- |
 | Build/developer | database connection, service ports | deployment/tooling; outside simulation state |
 | Vehicle profile | E90/N54 static identity, displacement, limits | selected before a run; immutable during it |
-| Simulation run | scenario, duration, fixed step, environment, initial conditions, future seed | per run |
+| Simulation run | scenario, duration, fixed step, environment, initial conditions, fault configuration | per run |
 | Calibration | future boost targets, ignition maps, lambda targets | controller configuration; not implemented |
-| Fault | future boost leak or sensor failure injection | explicit per run; not implemented |
+| Fault | four Phase 7B physical/system or sensor effects | explicit, immutable per run |
 
 These categories must not collapse into one global configuration object.
 
@@ -399,6 +399,10 @@ These categories must not collapse into one global configuration object.
 - **Scenario:** deterministic time-indexed stimuli selected by scenario identifier.
 - **ScenarioInputs:** stateless, time-derived driver/environment/control requests consumed by the
   vehicle model; never final physical outputs.
+- **FaultConfiguration:** stable fault ID plus simulation-time activation and optional deactivation;
+  orthogonal to the scenario and retained across reset.
+- **SensorObservation:** transient ECU-facing view that can differ from canonical physical truth
+  only for an active sensor fault.
 - **SimulationClock:** fixed-step owner of simulation timestamp and tick progression.
 - **Telemetry:** decoded observations downstream of CAN/DBC, live or persisted.
 - **DTC:** diagnostic trouble code with a defined lifecycle.

@@ -103,8 +103,12 @@ if(BUILD_TESTING)
     add_executable(tuneros_gateway_protocol_tests tests/gateway_protocol_test.cpp)
     target_link_libraries(tuneros_gateway_protocol_tests PRIVATE TunerOS::CanGateway)
 
+    add_executable(tuneros_fault_network_tests tests/fault_network_test.cpp)
+    target_link_libraries(tuneros_fault_network_tests PRIVATE TunerOS::VehicleNetwork)
+
     foreach(target tuneros_can_tests tuneros_dme_frame_tests tuneros_dsc_tests
-                   tuneros_vehicle_network_tests tuneros_gateway_protocol_tests)
+                   tuneros_vehicle_network_tests tuneros_gateway_protocol_tests
+                   tuneros_fault_network_tests)
         target_compile_features(${target} PRIVATE cxx_std_20)
         if(MSVC)
             target_compile_options(${target} PRIVATE /W4 /permissive-)
@@ -118,4 +122,5 @@ if(BUILD_TESTING)
     add_test(NAME can.dsc COMMAND tuneros_dsc_tests)
     add_test(NAME can.vehicle_network COMMAND tuneros_vehicle_network_tests)
     add_test(NAME can.gateway_protocol COMMAND tuneros_gateway_protocol_tests)
+    add_test(NAME can.fault_network COMMAND tuneros_fault_network_tests)
 endif()

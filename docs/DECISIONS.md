@@ -84,5 +84,12 @@ a dated superseding entry.
 | Reject clearing active or pending DTCs | Clear is diagnostic-memory management for historical records and cannot hide a present condition or modify simulation. |
 | Keep normal scenarios diagnostically clean | Conservative synthetic thresholds validate the domain without pretending normal simulation is faulty or claiming BMW fidelity. |
 | Keep Phase 7A diagnostics synthetic and REST-only | `TUN-*` codes avoid OEM claims; small derived state does not justify changing existing telemetry/raw WebSockets. |
+| Inject faults only on the C++ simulation side | A fault must change vehicle behavior or sensor observation and travel through ECU publication, CAN, DBC, and telemetry before diagnostics can react. |
+| Keep diagnostics completely fault-unaware | Fault identifiers, timing, and metadata never enter diagnostic rules or APIs; existing telemetry conditions remain the only input. |
+| Keep scenarios and faults orthogonal | CITY remains CITY while an immutable fault configuration overlays behavior without duplicating scenario schedules. |
+| Separate sensor observation from physical truth | MAP and one-wheel biases affect ECU-visible values without corrupting canonical manifold pressure or vehicle speed. |
+| Preserve exact no-fault output | Empty fault configuration selects the established equations, observations, CAN layouts, schedules, and counts. |
+| Persist fault runs as raw CAN only | Version-one sessions gain no fault or DTC fields; replay reconstructs diagnostics without fault metadata or a simulator. |
+| Keep Phase 7B fault control CLI-only | Fixed pre-run configuration is deterministic and bounded; no browser or backend runtime mutation API is justified yet. |
 | Avoid unnecessary distributed or units infrastructure | Message brokers, cloud services, and a dimensional-analysis library add no Phase 0 engineering value. |
 | Defer persistence frameworks and schemas | ORMs, database migrations, brokers, and unrelated application infrastructure should follow concrete requirements. |

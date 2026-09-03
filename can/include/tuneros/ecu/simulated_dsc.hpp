@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <vector>
 
@@ -24,6 +25,9 @@ class SimulatedDsc {
   [[nodiscard]] const DscPublicationSchedule& schedule() const noexcept { return schedule_; }
   [[nodiscard]] std::vector<canbus::CanFrame> collect_due_frames(
       const simulator::VehicleState& state);
+  [[nodiscard]] std::vector<canbus::CanFrame> collect_due_frames(
+      const simulator::VehicleState& state,
+      const std::array<double, 4>& wheel_speeds_meters_per_second);
   void observe_and_publish(const simulator::VehicleState& state, canbus::CanTransport& transport);
   void reset() noexcept;
 

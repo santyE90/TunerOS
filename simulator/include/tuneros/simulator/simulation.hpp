@@ -3,6 +3,7 @@
 #include <cstdint>
 
 #include "tuneros/simulator/contracts.hpp"
+#include "tuneros/simulator/faults.hpp"
 #include "tuneros/simulator/initial_conditions.hpp"
 #include "tuneros/simulator/simulation_clock.hpp"
 
@@ -15,6 +16,7 @@ struct SimulationRunConfiguration {
   SimulationDuration fixed_step{kBaseSimulationStep};
   EnvironmentState environment{};
   SimulationInitialConditions initial_conditions{};
+  FaultConfigurations faults{};
 
   friend bool operator==(const SimulationRunConfiguration&,
                          const SimulationRunConfiguration&) = default;

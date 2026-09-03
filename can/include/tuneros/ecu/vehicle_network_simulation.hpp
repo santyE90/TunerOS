@@ -12,7 +12,8 @@ namespace tuneros::ecu {
 class VehicleNetworkPublisher {
  public:
   explicit VehicleNetworkPublisher(DmePublicationSchedule dme_schedule = {},
-                                   DscPublicationSchedule dsc_schedule = {});
+                                   DscPublicationSchedule dsc_schedule = {},
+                                   simulator::FaultConfigurations faults = {});
 
   [[nodiscard]] const SimulatedDme& dme() const noexcept { return dme_; }
   [[nodiscard]] const SimulatedDsc& dsc() const noexcept { return dsc_; }
@@ -23,6 +24,7 @@ class VehicleNetworkPublisher {
  private:
   SimulatedDme dme_;
   SimulatedDsc dsc_;
+  simulator::FaultConfigurations faults_;
 };
 
 class VehicleNetworkSimulation {

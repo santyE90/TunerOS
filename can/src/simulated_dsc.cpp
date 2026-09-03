@@ -15,6 +15,14 @@ SimulatedDsc::SimulatedDsc(DscPublicationSchedule schedule) : schedule_(schedule
 
 std::vector<canbus::CanFrame> SimulatedDsc::collect_due_frames(
     const simulator::VehicleState& state) {
+  return collect_due_frames(
+      state, {state.vehicle_speed_meters_per_second, state.vehicle_speed_meters_per_second,
+              state.vehicle_speed_meters_per_second, state.vehicle_speed_meters_per_second});
+}
+
+std::vector<canbus::CanFrame> SimulatedDsc::collect_due_frames(
+    const simulator::VehicleState& state,
+    const std::array<double, 4>& wheel_speeds_meters_per_second) {
   std::vector<canbus::CanFrame> frames;
   frames.reserve(2);
   const auto timestamp = state.timestamp.microseconds;
@@ -25,7 +33,7 @@ std::vector<canbus::CanFrame> SimulatedDsc::collect_due_frames(
                                   schedule_.vehicle_motion_period_microseconds, timestamp);
   }
   if (timestamp >= next_wheel_speeds_timestamp_) {
-    frames.push_back(make_dsc_wheel_speeds_frame(state));
+    frames.push_back(make_dsc_wheel_speeds_frame(state, wheel_speeds_meters_per_second));
     detail::advance_due_timestamp(next_wheel_speeds_timestamp_,
                                   schedule_.wheel_speeds_period_microseconds, timestamp);
   }

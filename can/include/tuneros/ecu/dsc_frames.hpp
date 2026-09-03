@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 
 #include "tuneros/canbus/frame.hpp"
@@ -20,5 +21,8 @@ inline constexpr double kDscSpeedScaleMetersPerSecond = 0.01;
 
 [[nodiscard]] canbus::CanFrame make_dsc_vehicle_motion_frame(const simulator::VehicleState& state);
 [[nodiscard]] canbus::CanFrame make_dsc_wheel_speeds_frame(const simulator::VehicleState& state);
+[[nodiscard]] canbus::CanFrame make_dsc_wheel_speeds_frame(
+    const simulator::VehicleState& state,
+    const std::array<double, 4>& wheel_speeds_meters_per_second);
 
 }  // namespace tuneros::ecu

@@ -194,6 +194,24 @@ def test_cpp_city_streams_both_ecus_into_existing_python_dbc_decoder() -> None:
         (["--scenario", "highway"], "--scenario must be one of"),
         (["--port", "70000"], "--port must be in"),
         (["--step-us", "0"], "--step-us must be positive"),
+        (["--fault", "unknown"], "--fault must be one of"),
+        (["--fault-at-us", "1"], "fault timing options require --fault"),
+        (
+            [
+                "--fault",
+                "charging-failure",
+                "--fault-at-us",
+                "10",
+                "--fault-clear-at-us",
+                "10",
+            ],
+            "--fault-clear-at-us must be greater",
+        ),
+        (["--fault-at-us", "-1"], "requires an unsigned integer"),
+        (
+            ["--fault", "charging-failure", "--fault", "map-sensor-bias"],
+            "only one --fault is supported",
+        ),
     ],
 )
 def test_gateway_executable_rejects_invalid_cli(arguments: list[str], expected: str) -> None:
@@ -207,3 +225,24 @@ def test_gateway_executable_rejects_invalid_cli(arguments: list[str], expected: 
     )
     assert result.returncode != 0
     assert expected in result.stderr
+
+
+def test_gateway_help_documents_all_synthetic_fault_names() -> None:
+    result = subprocess.run(
+        [str(_gateway_executable()), "--help"],
+        cwd=_REPOSITORY_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert result.returncode == 0
+    for name in (
+        "cooling-degradation",
+        "charging-failure",
+        "map-sensor-bias",
+        "front-left-wheel-speed-sensor-bias",
+        "--fault-at-us",
+        "--fault-clear-at-us",
+    ):
+        assert name in result.stdout

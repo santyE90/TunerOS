@@ -201,3 +201,20 @@ load rises. This is an illustrative vacuum/load relationship, not an N54 turbo o
 HIGHWAY, SPIRITED, WOT_PULL, and DYNO_PULL remain unsupported. Phase 1C adds no reverse motion,
 engine stopping, torque production, road load, turbo dynamics, clutch behavior, wheel dynamics, or
 traction behavior.
+
+## Phase 7B fault application
+
+Fault configuration is orthogonal to the existing scenario and uses integer simulation timestamps.
+Physical/system effects remain in `VehicleSimulation`: degraded cooling changes the coolant
+equilibrium/time constant, and charging failure changes the running-voltage target/time constant.
+Neither assigns a final value, and normal evolution resumes when the fault interval ends.
+
+Sensor faults preserve physical truth. `VehicleState.manifold_pressure_kpa_absolute` and
+`VehicleState.vehicle_speed_meters_per_second` remain canonical. Immediately before ECU publication,
+a compact `SensorObservation` may add the fixed MAP bias to the DME view or the fixed front-left
+wheel bias to one DSC wheel observation. Other wheel observations and canonical vehicle speed remain
+unchanged.
+
+An empty fault list follows the original equations and observations exactly. Fault parameters,
+interval semantics, and the synthetic disclaimer are documented in
+[Fault injection](FAULT_INJECTION.md).

@@ -153,3 +153,7 @@ Phase 7A consumes the coherent snapshot only after a complete `DecodedCanFrame` 
 `DiagnosticEngine` reuses canonical `SignalKey`, engineering values, simulation timestamps,
 freshness, and provenance; it does not alter telemetry latest/history/statistics or accept raw CAN.
 See [Diagnostics](DIAGNOSTICS.md).
+
+Phase 7B does not add a telemetry fault channel or metadata field. Altered engineering values arrive
+only by decoding existing fault-affected raw frames. Signal keys, provenance, freshness, histories,
+statistics, and REST/WebSocket contracts are unchanged.

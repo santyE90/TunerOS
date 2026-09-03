@@ -144,6 +144,10 @@ Freeze View keeps consuming into the bounded current buffer and tracks how many 
 but leaves displayed rows and selection stable. Resume replaces displayed rows with the latest
 bounded buffer. It does not pause the simulator, source, backend, recording, replay, or telemetry.
 
+Phase 7B simulator-side faults naturally appear as changed bytes and decoded engineering values in
+the existing explorer. The explorer receives no fault identifier, performs no fault-specific
+decoding, and still cannot inject or edit frames.
+
 ## Deferred and prohibited behavior
 
 Phase 6A does not transmit, edit, inject, or spoof CAN frames; edit decoded signals; upload/edit

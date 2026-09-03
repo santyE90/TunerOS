@@ -42,6 +42,10 @@ void validate_configuration(const SimulationRunConfiguration& configuration) {
   if (!is_valid(configuration.initial_conditions, configuration.vehicle_profile)) {
     throw std::invalid_argument("simulation initial conditions are invalid");
   }
+  if (!are_valid(configuration.faults)) {
+    throw std::invalid_argument(
+        "fault configurations require unique IDs and deactivation after activation");
+  }
   if (!is_supported(configuration.scenario)) {
     throw std::invalid_argument("scenario is not implemented in Phase 1C");
   }
@@ -121,7 +125,8 @@ void apply_scenario_inputs(VehicleState& state, const ScenarioInputs& inputs) no
 }
 
 void evolve_vehicle_state(VehicleState& state, const ScenarioInputs& inputs, ScenarioId scenario,
-                          const VehicleProfile& profile, double delta_time_seconds) noexcept {
+                          const VehicleProfile& profile, const ActiveFaults& active_faults,
+                          double delta_time_seconds) noexcept {
   using namespace model_parameters;
 
   apply_scenario_inputs(state, inputs);
@@ -187,9 +192,15 @@ void evolve_vehicle_state(VehicleState& state, const ScenarioInputs& inputs, Sce
   }
   state.requested_boost_kpa_gauge = 0.0;
 
+  const double coolant_equilibrium = active_faults.cooling_system_degradation
+                                         ? fault_parameters::kDegradedCoolingEquilibriumCelsius
+                                         : kCoolantIdleEquilibriumCelsius;
+  const double coolant_time_constant = active_faults.cooling_system_degradation
+                                           ? fault_parameters::kDegradedCoolingTimeConstantSeconds
+                                           : kCoolantWarmupTimeConstantSeconds;
   state.coolant_temperature_celsius =
-      approach(state.coolant_temperature_celsius, kCoolantIdleEquilibriumCelsius,
-               kCoolantWarmupTimeConstantSeconds, delta_time_seconds);
+      approach(state.coolant_temperature_celsius, coolant_equilibrium, coolant_time_constant,
+               delta_time_seconds);
   state.oil_temperature_celsius =
       approach(state.oil_temperature_celsius, kOilIdleEquilibriumCelsius,
                kOilWarmupTimeConstantSeconds, delta_time_seconds);
@@ -202,8 +213,14 @@ void evolve_vehicle_state(VehicleState& state, const ScenarioInputs& inputs, Sce
   state.lambda = kIdleLambda;
   state.ignition_advance_degrees = kIdleIgnitionAdvanceDegrees;
   state.timing_correction_degrees = 0.0;
-  state.battery_voltage_volts = approach(state.battery_voltage_volts, kChargingVoltageVolts,
-                                         kBatteryVoltageTimeConstantSeconds, delta_time_seconds);
+  const double charging_target = active_faults.charging_system_failure
+                                     ? fault_parameters::kFailedChargingVoltageVolts
+                                     : kChargingVoltageVolts;
+  const double charging_time_constant = active_faults.charging_system_failure
+                                            ? fault_parameters::kFailedChargingTimeConstantSeconds
+                                            : kBatteryVoltageTimeConstantSeconds;
+  state.battery_voltage_volts = approach(state.battery_voltage_volts, charging_target,
+                                         charging_time_constant, delta_time_seconds);
 }
 
 [[nodiscard]] SimulationRunConfiguration make_run_configuration(
@@ -266,8 +283,9 @@ bool VehicleSimulation::tick() {
       scenario_inputs_for(configuration_.scenario, clock_.timestamp(), configuration_.environment);
   const double delta_time_seconds =
       static_cast<double>(clock_.fixed_step().microseconds) / kMicrosecondsPerSecond;
+  const auto active_faults = active_faults_at(configuration_.faults, clock_.timestamp());
   evolve_vehicle_state(state_, inputs, configuration_.scenario, configuration_.vehicle_profile,
-                       delta_time_seconds);
+                       active_faults, delta_time_seconds);
   state_.timestamp = clock_.timestamp();
   state_.run_state = state_.timestamp.microseconds == configuration_.duration.microseconds
                          ? SimulationRunState::kCompleted

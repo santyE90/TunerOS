@@ -27,6 +27,12 @@ before the unchanged telemetry decode. This does not alter the version-one artif
 Phase 7A evaluates the same decoded telemetry through `DiagnosticEngine`. DTCs, transition events,
 and freeze frames are regenerated during replay and are not fields or files in the artifact.
 
+Phase 7B fault runs are recorded identically to normal runs. Neither fault identity/configuration nor
+derived diagnostic state is added to the manifest or frame stream. After the C++ simulator stops,
+the raw frames alone reproduce the same telemetry snapshot/histories/statistics, CAN Explorer state,
+DTC snapshot/events, and freeze frame. Replay therefore neither knows nor needs the originating
+fault ID.
+
 Recording occurs before decode. It preserves arrival order, duplicate frames, equal timestamps,
 arbitration ID, DLC, meaningful payload bytes, and unsigned integer simulation timestamps exactly.
 Backward timestamps are rejected. Replay does not reconstruct raw frames from decoded data.
