@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from tuneros.api.models import (
+    CalibrationProfileResponse,
     CanExplorerFrameResponse,
     CanExplorerStatisticsResponse,
     CanMessageStatisticsResponse,
@@ -34,6 +35,7 @@ from tuneros.api.models import (
     TelemetryStatusResponse,
 )
 from tuneros.api.serialization import (
+    serialize_calibration,
     serialize_can_frame,
     serialize_can_message_statistics,
     serialize_can_source_state,
@@ -58,6 +60,7 @@ from tuneros.api.serialization import (
     serialize_statistics,
     serialize_update,
 )
+from tuneros.calibration import calibration_profile, calibration_profiles
 from tuneros.diagnostics import (
     DiagnosticClearError,
     DiagnosticError,
@@ -219,6 +222,20 @@ def create_app(
             total_frames=status.statistics.total_frames,
             total_signal_updates=status.statistics.total_signal_updates,
         )
+
+    @app.get(f"{API_PREFIX}/calibrations", response_model=list[CalibrationProfileResponse])
+    def get_calibrations() -> list[CalibrationProfileResponse]:
+        return [serialize_calibration(profile) for profile in calibration_profiles()]
+
+    @app.get(
+        f"{API_PREFIX}/calibrations/{{profile_id}}",
+        response_model=CalibrationProfileResponse,
+    )
+    def get_calibration(profile_id: str) -> CalibrationProfileResponse:
+        try:
+            return serialize_calibration(calibration_profile(profile_id))
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
 
     @app.get(f"{API_PREFIX}/source", response_model=TelemetrySourceResponse)
     def get_source() -> TelemetrySourceResponse:

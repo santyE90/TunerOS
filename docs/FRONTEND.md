@@ -206,3 +206,11 @@ refetched during movement. Frame detail uses existing CAN formatting and backend
 compatible baseline uses an explicit center and shared relative-time chart axis; numeric sample
 statistics and neutral DTC-presence wording add no anomaly or causality claim. **Export Evidence**
 downloads deterministic backend JSON. See [Diagnostic investigation workflows](INVESTIGATION.md).
+
+## Phase 8B calibration inspection
+
+`/calibration` is read-only. It fetches the backend catalog, selects Stock or Stage 1, displays
+IDs/revisions/disclaimer/parameters, uses native SVG for 1D curves, and renders 2D values with
+profile deltas and units. There are no save, apply, flash, or synthetic-telemetry controls. Sessions
+display `Stock r1`, `Stage 1 r1`, or `Unknown / Legacy`; Investigation labels Primary and
+Baseline likewise without assuming Stock means healthy.

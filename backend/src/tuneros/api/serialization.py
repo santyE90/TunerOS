@@ -1,6 +1,10 @@
 """Adapt immutable telemetry-domain values to explicit API models."""
 
 from tuneros.api.models import (
+    CalibrationAxisResponse,
+    CalibrationParameterResponse,
+    CalibrationProfileResponse,
+    CalibrationTableResponse,
     CanDecodedSignalResponse,
     CanExplorerFrameResponse,
     CanExplorerStatisticsResponse,
@@ -37,6 +41,7 @@ from tuneros.api.models import (
     TelemetryStatisticsResponse,
     TelemetryUpdateEventResponse,
 )
+from tuneros.calibration import CalibrationProfile
 from tuneros.can import (
     CanExplorerFrame,
     CanExplorerSnapshot,
@@ -381,6 +386,46 @@ def serialize_session_summary(
         frame_count=manifest.frame_count,
         duration_microseconds=manifest.duration_microseconds,
         dbc_compatible=dbc_compatible,
+        calibration_id=manifest.calibration_id,
+        calibration_revision=manifest.calibration_revision,
+    )
+
+
+def serialize_calibration(profile: CalibrationProfile) -> CalibrationProfileResponse:
+    return CalibrationProfileResponse(
+        profile_id=profile.profile_id,
+        display_name=profile.display_name,
+        revision=profile.revision,
+        description=profile.description,
+        synthetic=True,
+        disclaimer=profile.disclaimer,
+        parameters=[
+            CalibrationParameterResponse(name=item.name, value=item.value, unit=item.unit)
+            for item in profile.parameters
+        ],
+        tables=[
+            CalibrationTableResponse(
+                table_id=table.table_id,
+                name=table.name,
+                value_unit=table.value_unit,
+                row_axis=CalibrationAxisResponse(
+                    name=table.row_axis.name,
+                    unit=table.row_axis.unit,
+                    breakpoints=list(table.row_axis.breakpoints),
+                ),
+                column_axis=(
+                    None
+                    if table.column_axis is None
+                    else CalibrationAxisResponse(
+                        name=table.column_axis.name,
+                        unit=table.column_axis.unit,
+                        breakpoints=list(table.column_axis.breakpoints),
+                    )
+                ),
+                values=[list(row) for row in table.values],
+            )
+            for table in profile.tables
+        ],
     )
 
 

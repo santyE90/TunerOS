@@ -1,4 +1,4 @@
-"""On-disk byte and JSON helpers for TunerOS session format version 1."""
+"""On-disk byte and JSON helpers for supported TunerOS session format versions."""
 
 import json
 import os
@@ -6,7 +6,11 @@ import struct
 from pathlib import Path
 
 from tuneros.session.errors import SessionFormatError, SessionVersionError
-from tuneros.session.models import SESSION_FORMAT_VERSION, SessionManifest
+from tuneros.session.models import (
+    SESSION_FORMAT_VERSION,
+    SESSION_FORMAT_VERSION_CALIBRATION,
+    SessionManifest,
+)
 
 SESSION_FILE_MAGIC = b"TNSR"
 SESSION_FILE_HEADER_SIZE = 8
@@ -15,11 +19,13 @@ MANIFEST_FILENAME = "manifest.json"
 FRAMES_FILENAME = "frames.bin"
 
 
-def encode_session_header() -> bytes:
-    return SESSION_FILE_HEADER.pack(SESSION_FILE_MAGIC, SESSION_FORMAT_VERSION, b"\x00\x00\x00")
+def encode_session_header(version: int = SESSION_FORMAT_VERSION) -> bytes:
+    if version not in (SESSION_FORMAT_VERSION, SESSION_FORMAT_VERSION_CALIBRATION):
+        raise SessionVersionError(f"unsupported session frame version {version}")
+    return SESSION_FILE_HEADER.pack(SESSION_FILE_MAGIC, version, b"\x00\x00\x00")
 
 
-def decode_session_header(data: bytes) -> None:
+def decode_session_header(data: bytes) -> int:
     if len(data) != SESSION_FILE_HEADER_SIZE:
         raise SessionFormatError(
             f"session frame header requires {SESSION_FILE_HEADER_SIZE} bytes, got {len(data)}"
@@ -27,10 +33,11 @@ def decode_session_header(data: bytes) -> None:
     magic, version, reserved = SESSION_FILE_HEADER.unpack(data)
     if magic != SESSION_FILE_MAGIC:
         raise SessionFormatError(f"invalid session frame magic {magic!r}")
-    if version != SESSION_FORMAT_VERSION:
+    if version not in (SESSION_FORMAT_VERSION, SESSION_FORMAT_VERSION_CALIBRATION):
         raise SessionVersionError(f"unsupported session frame version {version}")
     if reserved != b"\x00\x00\x00":
         raise SessionFormatError("session frame header reserved bytes must be zero")
+    return version
 
 
 def write_manifest_atomic(path: Path, manifest: SessionManifest) -> None:

@@ -249,7 +249,16 @@ microseconds are allowed. Actual edges clamp to recorded bounds and are returned
 8,192 raw frames returns `413` instead of truncation.
 
 Compare requires `baseline_session_id` and optionally accepts `baseline_center_us`; export accepts
-the same optional baseline fields. Baseline compatibility requires identical DBC SHA-256, CAN
-network identity, and vehicle profile. Invalid input is `422`, missing UUID is `404`, and artifact or
-compatibility conflicts are `409`. Responses contain no session filesystem path. See
+the same optional baseline fields. Baseline compatibility requires a supported layout-compatible
+DBC, identical CAN network, and vehicle profile. Invalid input is `422`, missing UUID is `404`, and artifact or
+compatibility conflicts are `409`. Calibration identity may differ between comparison peers.
+Responses contain no session filesystem path. See
 [Diagnostic investigation workflows](INVESTIGATION.md).
+
+## Calibration catalog and provenance
+
+`GET /api/v1/calibrations` returns both immutable public profiles; `GET
+/api/v1/calibrations/{profile_id}` returns one or `404`. Responses include stable ID, name,
+revision, synthetic disclaimer, parameters, axes/units, and ordered map values. No mutation route
+exists. Session summary/detail responses add nullable `calibration_id` and
+`calibration_revision`; null identifies legacy/unknown provenance.

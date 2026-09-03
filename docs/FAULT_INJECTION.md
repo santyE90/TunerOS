@@ -92,10 +92,15 @@ Fault injection changes no CAN ID, DLC, signal layout, scale, transmitter label,
 publication period. Existing Overview and Telemetry values, CAN Explorer frames, and Diagnostics
 state therefore show effects without fault-specific frontend/backend code.
 
-Fault runs use the unchanged version-one raw session format. Manifests and frame files contain no
+Fault runs without calibration provenance use the unchanged v1 format; provenance-aware runs use
+v2. Neither manifest version nor frame files contain
 fault configuration, diagnostic record, event, or freeze frame. Replay needs no C++ process and no
 fault identity: recorded raw frames regenerate decoded telemetry, DTC lifecycle, event timestamps,
 occurrence counts, and freeze frames exactly.
 
 No-fault output remains the Phase 7A baseline, including the default CITY contract of 27,305 raw
 frames and 93,467 decoded signal updates with no diagnostics.
+
+Phase 8B keeps fault configuration orthogonal to immutable calibration selection. Stage 1 plus
+charging failure still changes published voltage and confirms `TUN-DME-003`; neither injection nor
+diagnostics receives calibration identity. Normal profile runs remain fault-free.

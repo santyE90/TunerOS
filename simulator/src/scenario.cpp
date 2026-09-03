@@ -64,8 +64,18 @@ ScenarioInputs scenario_inputs_for(ScenarioId scenario, SimulationTimestamp time
         stationary_intent = true;
       }
       break;
+    case ScenarioId::kWideOpenThrottlePull:
+      stationary_intent = false;
+      if (timestamp.microseconds < kWotPullThrottleTimestampMicroseconds) {
+        accelerator = kWotPullPreloadAccelerator;
+        requested_load = kWotPullPreloadRequestedLoad;
+      } else {
+        accelerator = kWotPullAccelerator;
+        requested_load = kWotPullRequestedLoad;
+      }
+      break;
     default:
-      throw std::invalid_argument("scenario is not implemented in Phase 1C");
+      throw std::invalid_argument("scenario is not implemented in Phase 8B");
   }
 
   return {

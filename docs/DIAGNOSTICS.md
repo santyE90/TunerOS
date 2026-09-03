@@ -161,3 +161,9 @@ event timestamps to `/sessions/{uuid}/investigate`. Investigation captures DTC s
 frames at or before center, so an earlier timestamp does not incorrectly show final-session state.
 Live diagnostics without a safely finalized session show a recording requirement instead of
 guessing an artifact identity. See [Diagnostic investigation workflows](INVESTIGATION.md).
+
+## Calibration orthogonality
+
+Calibration ID/revision never enters a rule, DTC, event, or freeze frame. Normal Stock and Stage 1
+WOT_PULL runs remain zero-DTC. Existing faults still act through simulation/CAN observations; the
+Stage 1 charging-failure regression confirms unchanged `TUN-DME-003` reconstruction.

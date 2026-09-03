@@ -25,6 +25,7 @@ from tuneros.session.models import (
     REFERENCE_VEHICLE_PROFILE_ID,
     SESSION_FORMAT_NAME,
     SESSION_FORMAT_VERSION,
+    SESSION_FORMAT_VERSION_CALIBRATION,
     SYNTHETIC_CAN_NETWORK,
     SessionManifest,
     SessionStatus,
@@ -59,6 +60,8 @@ class SessionRecorder:
         created_at_utc: datetime | None = None,
         dbc_name: str = AUTHORITATIVE_DBC_NAME,
         dbc_sha256: str | None = None,
+        calibration_id: str | None = None,
+        calibration_revision: int | None = None,
     ) -> None:
         identifier = session_id or uuid4()
         created = created_at_utc or datetime.now(UTC)
@@ -71,9 +74,16 @@ class SessionRecorder:
         if self._partial_path.exists() or self._final_path.exists():
             raise SessionRecordingError(f"session {identifier} already exists")
         self._partial_path.mkdir()
+        if (calibration_id is None) != (calibration_revision is None):
+            raise ValueError("calibration ID and revision must be supplied together")
+        if calibration_id is not None and (not calibration_id or not calibration_revision):
+            raise ValueError("calibration provenance requires a non-empty ID and positive revision")
+        format_version = (
+            SESSION_FORMAT_VERSION if calibration_id is None else SESSION_FORMAT_VERSION_CALIBRATION
+        )
         self._manifest = SessionManifest(
             format_name=SESSION_FORMAT_NAME,
-            format_version=SESSION_FORMAT_VERSION,
+            format_version=format_version,
             session_id=str(identifier),
             created_at_utc=created.astimezone(UTC).isoformat().replace("+00:00", "Z"),
             name=normalize_session_name(name),
@@ -89,11 +99,13 @@ class SessionRecorder:
             first_timestamp_microseconds=None,
             last_timestamp_microseconds=None,
             duration_microseconds=0,
+            calibration_id=calibration_id,
+            calibration_revision=calibration_revision,
         )
         self._frames_path = self._partial_path / FRAMES_FILENAME
         self._stream = self._frames_path.open("wb")
         self._hasher = hashlib.sha256()
-        header = encode_session_header()
+        header = encode_session_header(format_version)
         self._stream.write(header)
         self._hasher.update(header)
         self._closed = False

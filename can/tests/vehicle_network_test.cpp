@@ -258,6 +258,34 @@ bool test_cold_start_publication() {
                 "COLD_START DSC must keep publishing zero-speed neutral motion at 50 Hz");
 }
 
+bool test_wot_calibration_changes_exact_raw_can() {
+  auto stock_configuration = simulator::make_default_wot_pull_run_configuration();
+  auto stage_configuration =
+      simulator::make_default_wot_pull_run_configuration({}, simulator::CalibrationId::kStage1);
+  ecu::VehicleNetworkSimulation stock{stock_configuration};
+  ecu::VehicleNetworkSimulation stage1{stage_configuration};
+  stock.run_to_completion();
+  stage1.run_to_completion();
+  const auto stock_first = stock.transport().drain();
+  const auto stage_first = stage1.transport().drain();
+  stock.reset();
+  stage1.reset();
+  stock.run_to_completion();
+  stage1.run_to_completion();
+  const auto stock_second = stock.transport().drain();
+  const auto stage_second = stage1.transport().drain();
+  return expect(stock_first == stock_second && stage_first == stage_second,
+                "Stock and Stage 1 WOT raw CAN sequences must each reproduce exactly") &&
+         expect(stock_first != stage_first,
+                "Calibration selection must change downstream WOT raw CAN evidence") &&
+         expect(count_id(stock_first, ecu::kDmeCombustionObservationFrameId) == 601 &&
+                    count_id(stage_first, ecu::kDmeCombustionObservationFrameId) == 601,
+                "Each inclusive WOT pull must publish 601 combustion observations") &&
+         expect(stock_first.front().arbitration_id == 0x500 &&
+                    find_frame(stock_first, 0x503, 0) != nullptr,
+                "WOT initial publication must include the additive DME observation frame");
+}
+
 bool test_invalid_schedule_rejected() {
   try {
     [[maybe_unused]] const ecu::SimulatedDme invalid{
@@ -281,7 +309,7 @@ bool test_invalid_schedule_rejected() {
 int main() {
   if (!test_exact_default_rates_and_ordering() || !test_non_divisible_and_undersampled_steps() ||
       !test_city_changes_binary_frames_and_replays() || !test_cold_start_publication() ||
-      !test_invalid_schedule_rejected()) {
+      !test_wot_calibration_changes_exact_raw_can() || !test_invalid_schedule_rejected()) {
     return 1;
   }
   return 0;

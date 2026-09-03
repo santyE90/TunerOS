@@ -6,6 +6,18 @@
 #include <vector>
 
 namespace tuneros::ecu {
+namespace {
+
+[[nodiscard]] DmePublicationSchedule schedule_for(
+    const simulator::SimulationRunConfiguration& configuration,
+    DmePublicationSchedule schedule) noexcept {
+  if (configuration.scenario == simulator::ScenarioId::kWideOpenThrottlePull) {
+    schedule.combustion_observation_enabled = true;
+  }
+  return schedule;
+}
+
+}  // namespace
 
 VehicleNetworkPublisher::VehicleNetworkPublisher(DmePublicationSchedule dme_schedule,
                                                  DscPublicationSchedule dsc_schedule,
@@ -39,8 +51,9 @@ void VehicleNetworkPublisher::reset() noexcept {
 VehicleNetworkSimulation::VehicleNetworkSimulation(
     simulator::SimulationRunConfiguration configuration, DmePublicationSchedule dme_schedule,
     DscPublicationSchedule dsc_schedule)
-    : vehicle_simulation_(std::move(configuration)),
-      publisher_(dme_schedule, dsc_schedule, vehicle_simulation_.configuration().faults) {
+    : vehicle_simulation_(configuration),
+      publisher_(schedule_for(configuration, dme_schedule), dsc_schedule,
+                 vehicle_simulation_.configuration().faults) {
   publish_current_state();
 }
 

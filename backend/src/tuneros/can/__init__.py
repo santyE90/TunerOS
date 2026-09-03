@@ -7,6 +7,7 @@ from tuneros.can.decoder import (
     TunerOsDbcDecoder,
     UnknownCanFrameError,
     authoritative_dbc_sha256,
+    is_supported_dbc_sha256,
 )
 from tuneros.can.explorer import (
     DEFAULT_CAN_EXPLORER_CAPACITY,
@@ -74,6 +75,7 @@ __all__ = [
     "TunerOsDbcDecoder",
     "UnknownCanFrameError",
     "authoritative_dbc_sha256",
+    "is_supported_dbc_sha256",
     "decode_gateway_header",
     "decode_gateway_record",
     "decode_raw_can_record",

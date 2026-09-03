@@ -11,6 +11,7 @@
 #include "tuneros/canbus/gateway_protocol.hpp"
 #include "tuneros/canbus/tcp_gateway.hpp"
 #include "tuneros/ecu/vehicle_network_simulation.hpp"
+#include "tuneros/simulator/calibration.hpp"
 #include "tuneros/simulator/faults.hpp"
 #include "tuneros/simulator/simulation.hpp"
 
@@ -21,6 +22,8 @@ struct CommandLineOptions {
   std::uint16_t port{tuneros::canbus::kDefaultGatewayPort};
   std::uint64_t step_microseconds{10'000};
   std::uint64_t duration_microseconds{};
+  tuneros::simulator::CalibrationId calibration{tuneros::simulator::CalibrationId::kStock};
+  bool calibration_option_seen{};
   std::optional<tuneros::simulator::FaultId> fault{};
   std::uint64_t fault_activation_microseconds{};
   std::optional<std::uint64_t> fault_deactivation_microseconds{};
@@ -60,8 +63,9 @@ CommandLineOptions parse_options(int argument_count, char** arguments) {
   for (int index = 1; index < argument_count; ++index) {
     const std::string_view option{arguments[index]};
     if (option == "--help") {
-      std::cout << "Usage: tuneros_gateway_sim [--scenario idle|cold-start|warmup|city] "
+      std::cout << "Usage: tuneros_gateway_sim [--scenario idle|cold-start|warmup|city|wot-pull] "
                    "[--port 0..65535] [--step-us positive] [--duration-us positive] "
+                   "[--calibration stock|stage-1] "
                    "[--fault cooling-degradation|charging-failure|map-sensor-bias|"
                    "front-left-wheel-speed-sensor-bias] [--fault-at-us nonnegative] "
                    "[--fault-clear-at-us greater-than-activation]\n"
@@ -74,6 +78,13 @@ CommandLineOptions parse_options(int argument_count, char** arguments) {
     const std::string_view value{arguments[++index]};
     if (option == "--scenario") {
       options.scenario = value;
+    } else if (option == "--calibration") {
+      const auto calibration = tuneros::simulator::calibration_id_from_name(value);
+      if (!calibration.has_value()) {
+        throw std::invalid_argument("--calibration must be one of: stock, stage-1");
+      }
+      options.calibration = *calibration;
+      options.calibration_option_seen = true;
     } else if (option == "--port") {
       const auto parsed = parse_unsigned(value, option);
       if (parsed > 65'535) {
@@ -127,10 +138,14 @@ tuneros::simulator::SimulationRunConfiguration make_configuration(
     configuration = make_default_warmup_run_configuration();
   } else if (options.scenario == "city") {
     configuration = make_default_city_run_configuration();
+  } else if (options.scenario == "wot-pull") {
+    configuration = make_default_wot_pull_run_configuration();
   } else {
-    throw std::invalid_argument("--scenario must be one of: idle, cold-start, warmup, city");
+    throw std::invalid_argument(
+        "--scenario must be one of: idle, cold-start, warmup, city, wot-pull");
   }
 
+  configuration.calibration = options.calibration;
   configuration.fixed_step = SimulationDuration{options.step_microseconds};
   if (options.duration_microseconds != 0) {
     configuration.duration = SimulationDuration{options.duration_microseconds};
@@ -155,7 +170,10 @@ int main(int argument_count, char** arguments) {
     const auto options = parse_options(argument_count, arguments);
     const auto configuration = make_configuration(options);
     auto simulation = tuneros::simulator::VehicleSimulation{configuration};
-    tuneros::ecu::VehicleNetworkPublisher network{{}, {}, configuration.faults};
+    tuneros::ecu::DmePublicationSchedule dme_schedule;
+    dme_schedule.combustion_observation_enabled =
+        configuration.scenario == tuneros::simulator::ScenarioId::kWideOpenThrottlePull;
+    tuneros::ecu::VehicleNetworkPublisher network{dme_schedule, {}, configuration.faults};
     tuneros::canbus::TcpCanServer server{options.port};
 
     if (options.fault.has_value()) {
@@ -165,6 +183,14 @@ int main(int argument_count, char** arguments) {
         std::cerr << " clear-at-us " << *options.fault_deactivation_microseconds;
       }
       std::cerr << '\n';
+    }
+    if (options.calibration_option_seen ||
+        configuration.scenario == tuneros::simulator::ScenarioId::kWideOpenThrottlePull) {
+      std::cerr << "CALIBRATION "
+                << tuneros::simulator::calibration_id_name(configuration.calibration)
+                << " revision "
+                << tuneros::simulator::calibration_profile(configuration.calibration).revision
+                << " (TunerOS synthetic simulation only)\n";
     }
 
     std::cout << "LISTENING " << server.port() << '\n' << std::flush;

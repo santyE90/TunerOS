@@ -15,7 +15,7 @@ def _catalog() -> SignalCatalog:
 
 def test_catalog_discovers_every_current_dbc_signal_and_provenance() -> None:
     catalog = _catalog()
-    assert len(catalog.definitions) == 17
+    assert len(catalog.definitions) == 19
 
     engine_speed = catalog.require(SignalKey("DmeFastEngine", "EngineSpeedRpm"))
     assert engine_speed.arbitration_id == 0x500
@@ -33,6 +33,7 @@ def test_catalog_discovers_every_current_dbc_signal_and_provenance() -> None:
         "DmeFastEngine",
         "DmeAirLoad",
         "DmeThermalElectrical",
+        "DmeCombustionObservation",
         "DscVehicleMotion",
         "DscWheelSpeeds",
     }

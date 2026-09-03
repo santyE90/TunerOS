@@ -24,4 +24,8 @@ struct DrivetrainState {
                                                      double delta_time_seconds,
                                                      const VehicleProfile& profile) noexcept;
 
+[[nodiscard]] DrivetrainState evolve_wot_pull_drivetrain(
+    double current_vehicle_speed_meters_per_second, double normalized_engine_output,
+    double delta_time_seconds, const VehicleProfile& profile) noexcept;
+
 }  // namespace tuneros::simulator

@@ -237,6 +237,40 @@ export interface SessionSummary {
   frame_count: number;
   duration_microseconds: number;
   dbc_compatible: boolean;
+  calibration_id: string | null;
+  calibration_revision: number | null;
+}
+
+export interface CalibrationAxis {
+  name: string;
+  unit: string;
+  breakpoints: number[];
+}
+
+export interface CalibrationTable {
+  table_id: string;
+  name: string;
+  value_unit: string;
+  row_axis: CalibrationAxis;
+  column_axis: CalibrationAxis | null;
+  values: number[][];
+}
+
+export interface CalibrationParameter {
+  name: string;
+  value: number;
+  unit: string;
+}
+
+export interface CalibrationProfile {
+  profile_id: string;
+  display_name: string;
+  revision: number;
+  description: string;
+  synthetic: boolean;
+  disclaimer: string;
+  parameters: CalibrationParameter[];
+  tables: CalibrationTable[];
 }
 
 export interface SessionDetail extends SessionSummary {

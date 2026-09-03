@@ -1,4 +1,5 @@
 add_library(tuneros_simulator STATIC
+    src/calibration.cpp
     src/contracts.cpp
     src/drivetrain.cpp
     src/faults.cpp
@@ -108,4 +109,18 @@ if(BUILD_TESTING)
     endif()
 
     add_test(NAME simulator.faults COMMAND tuneros_fault_tests)
+
+    add_executable(tuneros_calibration_tests
+        tests/calibration_test.cpp
+    )
+    target_link_libraries(tuneros_calibration_tests PRIVATE TunerOS::Simulator)
+    target_compile_features(tuneros_calibration_tests PRIVATE cxx_std_20)
+
+    if(MSVC)
+        target_compile_options(tuneros_calibration_tests PRIVATE /W4 /permissive-)
+    else()
+        target_compile_options(tuneros_calibration_tests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+
+    add_test(NAME simulator.calibration COMMAND tuneros_calibration_tests)
 endif()

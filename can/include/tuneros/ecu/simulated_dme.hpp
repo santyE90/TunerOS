@@ -13,6 +13,9 @@ struct DmePublicationSchedule {
   std::uint64_t fast_engine_period_microseconds{kDmeFastEnginePeriodMicroseconds};
   std::uint64_t air_load_period_microseconds{kDmeAirLoadPeriodMicroseconds};
   std::uint64_t thermal_electrical_period_microseconds{kDmeThermalElectricalPeriodMicroseconds};
+  std::uint64_t combustion_observation_period_microseconds{
+      kDmeCombustionObservationPeriodMicroseconds};
+  bool combustion_observation_enabled{};
 
   friend constexpr bool operator==(const DmePublicationSchedule&,
                                    const DmePublicationSchedule&) = default;
@@ -34,6 +37,7 @@ class SimulatedDme {
   std::uint64_t next_fast_engine_timestamp_{};
   std::uint64_t next_air_load_timestamp_{};
   std::uint64_t next_thermal_electrical_timestamp_{};
+  std::uint64_t next_combustion_observation_timestamp_{};
 };
 
 }  // namespace tuneros::ecu

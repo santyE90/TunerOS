@@ -23,7 +23,8 @@ constexpr double kMicrosecondsPerSecond = 1'000'000.0;
 
 [[nodiscard]] bool is_supported(ScenarioId scenario) noexcept {
   return scenario == ScenarioId::kIdle || scenario == ScenarioId::kColdStart ||
-         scenario == ScenarioId::kWarmup || scenario == ScenarioId::kCity;
+         scenario == ScenarioId::kWarmup || scenario == ScenarioId::kCity ||
+         scenario == ScenarioId::kWideOpenThrottlePull;
 }
 
 [[nodiscard]] double cold_start_fraction(double requested_scenario_load) noexcept {
@@ -46,8 +47,9 @@ void validate_configuration(const SimulationRunConfiguration& configuration) {
     throw std::invalid_argument(
         "fault configurations require unique IDs and deactivation after activation");
   }
+  static_cast<void>(calibration_profile(configuration.calibration));
   if (!is_supported(configuration.scenario)) {
-    throw std::invalid_argument("scenario is not implemented in Phase 1C");
+    throw std::invalid_argument("scenario is not implemented in Phase 8B");
   }
   if (configuration.duration.microseconds == 0) {
     throw std::invalid_argument("simulation duration must be positive");
@@ -67,9 +69,13 @@ void validate_configuration(const SimulationRunConfiguration& configuration) {
            0)) {
     throw std::invalid_argument("cold-start schedule boundaries must align with the fixed step");
   }
-  if (configuration.initial_conditions.vehicle_speed_meters_per_second != 0.0 ||
-      configuration.initial_conditions.current_gear != 0) {
-    throw std::invalid_argument("implemented scenarios must start stationary and neutral");
+  const bool is_wot_pull = configuration.scenario == ScenarioId::kWideOpenThrottlePull;
+  if ((!is_wot_pull && (configuration.initial_conditions.vehicle_speed_meters_per_second != 0.0 ||
+                        configuration.initial_conditions.current_gear != 0)) ||
+      (is_wot_pull &&
+       (configuration.initial_conditions.vehicle_speed_meters_per_second <= 0.0 ||
+        configuration.initial_conditions.current_gear != model_parameters::kWotPullGear))) {
+    throw std::invalid_argument("initial speed and gear are inconsistent with the scenario");
   }
 
   const bool should_start_running = configuration.scenario != ScenarioId::kColdStart;
@@ -125,8 +131,8 @@ void apply_scenario_inputs(VehicleState& state, const ScenarioInputs& inputs) no
 }
 
 void evolve_vehicle_state(VehicleState& state, const ScenarioInputs& inputs, ScenarioId scenario,
-                          const VehicleProfile& profile, const ActiveFaults& active_faults,
-                          double delta_time_seconds) noexcept {
+                          const VehicleProfile& profile, const CalibrationProfile& calibration,
+                          const ActiveFaults& active_faults, double delta_time_seconds) noexcept {
   using namespace model_parameters;
 
   apply_scenario_inputs(state, inputs);
@@ -174,6 +180,41 @@ void evolve_vehicle_state(VehicleState& state, const ScenarioInputs& inputs, Sce
             load_above_idle;
     state.manifold_pressure_kpa_absolute =
         inputs.environment.ambient_pressure_kpa_absolute * manifold_pressure_fraction;
+  } else if (scenario == ScenarioId::kWideOpenThrottlePull) {
+    const double calibrated_demand =
+        calibration.throttle_response.lookup(inputs.accelerator_pedal_position);
+    state.engine_load = std::clamp(
+        kCityEngineLoadOffset + std::max(calibrated_demand, inputs.requested_scenario_load), 0.0,
+        1.0);
+    state.throttle_position = std::clamp(
+        kIdleThrottlePosition + (1.0 - kIdleThrottlePosition) * calibrated_demand, 0.0, 1.0);
+    const bool boost_enabled =
+        inputs.accelerator_pedal_position >= 0.20 && state.engine_load > 0.30;
+    const double boost_target = boost_enabled ? calibration.boost_target_kpa_gauge.lookup(
+                                                    state.engine_speed_rpm, state.engine_load)
+                                              : 0.0;
+    state.requested_boost_kpa_gauge = boost_target;
+    const double current_boost = state.actual_boost_kpa_gauge();
+    const double actual_boost =
+        approach(current_boost, boost_target, calibration.boost_response_time_constant_seconds,
+                 delta_time_seconds);
+    state.manifold_pressure_kpa_absolute =
+        std::max(0.0, inputs.environment.ambient_pressure_kpa_absolute + actual_boost);
+    const double normalized_output =
+        calibrated_demand * calibration.engine_output_multiplier *
+        (1.0 + 0.35 * std::max(0.0, actual_boost) /
+                   std::max(1.0, inputs.environment.ambient_pressure_kpa_absolute));
+    const auto drivetrain = evolve_wot_pull_drivetrain(
+        state.vehicle_speed_meters_per_second, normalized_output, delta_time_seconds, profile);
+    state.vehicle_speed_meters_per_second = drivetrain.vehicle_speed_meters_per_second;
+    state.current_gear = drivetrain.selected_gear;
+    state.engine_speed_rpm = drivetrain.engine_speed_rpm;
+    state.lambda = approach(state.lambda, calibration.lambda_target.lookup(state.engine_load),
+                            kWotPullLambdaTimeConstantSeconds, delta_time_seconds);
+    state.ignition_advance_degrees = approach(
+        state.ignition_advance_degrees,
+        calibration.ignition_target_degrees.lookup(state.engine_speed_rpm, state.engine_load),
+        kWotPullIgnitionTimeConstantSeconds, delta_time_seconds);
   } else {
     state.vehicle_speed_meters_per_second = 0.0;
     state.current_gear = 0;
@@ -190,7 +231,9 @@ void evolve_vehicle_state(VehicleState& state, const ScenarioInputs& inputs, Sce
     state.manifold_pressure_kpa_absolute =
         inputs.environment.ambient_pressure_kpa_absolute * kIdleManifoldPressureFractionOfAmbient;
   }
-  state.requested_boost_kpa_gauge = 0.0;
+  if (scenario != ScenarioId::kWideOpenThrottlePull) {
+    state.requested_boost_kpa_gauge = 0.0;
+  }
 
   const double coolant_equilibrium = active_faults.cooling_system_degradation
                                          ? fault_parameters::kDegradedCoolingEquilibriumCelsius
@@ -204,14 +247,20 @@ void evolve_vehicle_state(VehicleState& state, const ScenarioInputs& inputs, Sce
   state.oil_temperature_celsius =
       approach(state.oil_temperature_celsius, kOilIdleEquilibriumCelsius,
                kOilWarmupTimeConstantSeconds, delta_time_seconds);
-  const double intake_air_equilibrium =
-      inputs.environment.ambient_temperature_celsius + kIntakeAirAboveAmbientAtIdleCelsius;
+  const double boost_heating = scenario == ScenarioId::kWideOpenThrottlePull
+                                   ? std::max(0.0, state.actual_boost_kpa_gauge()) *
+                                         kWotPullIntakeAirBoostHeatingCelsiusPerKpa
+                                   : 0.0;
+  const double intake_air_equilibrium = inputs.environment.ambient_temperature_celsius +
+                                        kIntakeAirAboveAmbientAtIdleCelsius + boost_heating;
   state.intake_air_temperature_celsius =
       approach(state.intake_air_temperature_celsius, intake_air_equilibrium,
                kIntakeAirTimeConstantSeconds, delta_time_seconds);
 
-  state.lambda = kIdleLambda;
-  state.ignition_advance_degrees = kIdleIgnitionAdvanceDegrees;
+  if (scenario != ScenarioId::kWideOpenThrottlePull) {
+    state.lambda = kIdleLambda;
+    state.ignition_advance_degrees = kIdleIgnitionAdvanceDegrees;
+  }
   state.timing_correction_degrees = 0.0;
   const double charging_target = active_faults.charging_system_failure
                                      ? fault_parameters::kFailedChargingVoltageVolts
@@ -225,7 +274,8 @@ void evolve_vehicle_state(VehicleState& state, const ScenarioInputs& inputs, Sce
 
 [[nodiscard]] SimulationRunConfiguration make_run_configuration(
     ScenarioId scenario, SimulationDuration duration, EnvironmentState environment,
-    SimulationInitialConditions initial_conditions) {
+    SimulationInitialConditions initial_conditions,
+    CalibrationId calibration = CalibrationId::kStock) {
   return {
       .vehicle_profile = make_e90_335i_n54_manual_profile(),
       .scenario = scenario,
@@ -233,6 +283,7 @@ void evolve_vehicle_state(VehicleState& state, const ScenarioInputs& inputs, Sce
       .fixed_step = kBaseSimulationStep,
       .environment = environment,
       .initial_conditions = initial_conditions,
+      .calibration = calibration,
   };
 }
 
@@ -263,6 +314,14 @@ SimulationRunConfiguration make_default_city_run_configuration(EnvironmentState 
       environment, make_city_initial_conditions(environment));
 }
 
+SimulationRunConfiguration make_default_wot_pull_run_configuration(EnvironmentState environment,
+                                                                   CalibrationId calibration) {
+  return make_run_configuration(
+      ScenarioId::kWideOpenThrottlePull,
+      SimulationDuration{model_parameters::kDefaultWotPullDurationMicroseconds}, environment,
+      make_wot_pull_initial_conditions(environment), calibration);
+}
+
 VehicleSimulation::VehicleSimulation(SimulationRunConfiguration configuration)
     : configuration_(std::move(configuration)), clock_(configuration_.fixed_step) {
   validate_configuration(configuration_);
@@ -285,7 +344,8 @@ bool VehicleSimulation::tick() {
       static_cast<double>(clock_.fixed_step().microseconds) / kMicrosecondsPerSecond;
   const auto active_faults = active_faults_at(configuration_.faults, clock_.timestamp());
   evolve_vehicle_state(state_, inputs, configuration_.scenario, configuration_.vehicle_profile,
-                       active_faults, delta_time_seconds);
+                       calibration_profile(configuration_.calibration), active_faults,
+                       delta_time_seconds);
   state_.timestamp = clock_.timestamp();
   state_.run_state = state_.timestamp.microseconds == configuration_.duration.microseconds
                          ? SimulationRunState::kCompleted

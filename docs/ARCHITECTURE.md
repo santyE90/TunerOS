@@ -253,3 +253,12 @@ diagnostic persistence, consumes the reader for full integrity validation, and r
 evidence. Simulation microseconds correlate every view. Raw session version 1 remains canonical;
 decoded series, comparisons, and exports are derived on demand and never persisted. See
 [Diagnostic investigation workflows](INVESTIGATION.md).
+
+## Phase 8B calibration path
+
+Phase 8B inserts immutable C++ `CalibrationProfile` selection before vehicle evolution. Only Stock
+and Stage 1 exist; Stock is default. WOT behavior travels through VehicleState, ECU observation,
+raw CAN, the DBC, and existing downstream services. Python publishes read-only catalog metadata but
+does not calculate calibration behavior. Session v2 records profile ID/revision as provenance while
+v1 stays readable. Calibration does not enter diagnostic rules or comparison compatibility. See
+[Calibration and tuning foundation](CALIBRATION.md).

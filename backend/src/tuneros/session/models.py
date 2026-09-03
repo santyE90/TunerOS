@@ -9,6 +9,7 @@ from tuneros.session.errors import SessionFormatError, SessionVersionError
 
 SESSION_FORMAT_NAME = "tuneros.raw_can_session"
 SESSION_FORMAT_VERSION = 1
+SESSION_FORMAT_VERSION_CALIBRATION = 2
 REFERENCE_VEHICLE_PROFILE_ID = "bmw-e90-335i-n54-2010-manual"
 SYNTHETIC_CAN_NETWORK = "TunerOS synthetic Classic CAN"
 
@@ -38,15 +39,29 @@ class SessionManifest:
     first_timestamp_microseconds: int | None
     last_timestamp_microseconds: int | None
     duration_microseconds: int
+    calibration_id: str | None = None
+    calibration_revision: int | None = None
 
     def to_dict(self) -> dict[str, object]:
-        return asdict(self)
+        value = asdict(self)
+        if self.format_version == SESSION_FORMAT_VERSION:
+            value.pop("calibration_id")
+            value.pop("calibration_revision")
+        return value
 
     @classmethod
     def from_dict(cls, value: object) -> Self:
         if not isinstance(value, dict):
             raise SessionFormatError("session manifest must be a JSON object")
+        version = value.get("format_version")
+        if type(version) is not int or version not in (
+            SESSION_FORMAT_VERSION,
+            SESSION_FORMAT_VERSION_CALIBRATION,
+        ):
+            raise SessionVersionError(f"unsupported session format version {version!r}")
         expected = set(cls.__dataclass_fields__)
+        if version == SESSION_FORMAT_VERSION:
+            expected -= {"calibration_id", "calibration_revision"}
         if set(value) != expected:
             missing = sorted(expected - set(value))
             extra = sorted(set(value) - expected)
@@ -55,9 +70,6 @@ class SessionManifest:
             )
         if value["format_name"] != SESSION_FORMAT_NAME:
             raise SessionFormatError(f"unsupported session format {value['format_name']!r}")
-        version = value["format_version"]
-        if type(version) is not int or version != SESSION_FORMAT_VERSION:
-            raise SessionVersionError(f"unsupported session format version {version!r}")
         try:
             manifest = cls(
                 format_name=value["format_name"],
@@ -83,6 +95,14 @@ class SessionManifest:
                     value, "last_timestamp_microseconds"
                 ),
                 duration_microseconds=_nonnegative_integer(value, "duration_microseconds"),
+                calibration_id=(
+                    None if version == SESSION_FORMAT_VERSION else _string(value, "calibration_id")
+                ),
+                calibration_revision=(
+                    None
+                    if version == SESSION_FORMAT_VERSION
+                    else _positive_integer(value, "calibration_revision")
+                ),
             )
         except (TypeError, ValueError) as error:
             raise SessionFormatError(f"invalid session manifest: {error}") from error
@@ -125,6 +145,11 @@ class SessionManifest:
                 raise SessionFormatError("complete session cannot have a failure reason")
         elif self.frames_sha256 is None or not self.failure_reason:
             raise SessionFormatError("incomplete session requires a hash and failure reason")
+        if self.format_version == SESSION_FORMAT_VERSION:
+            if self.calibration_id is not None or self.calibration_revision is not None:
+                raise SessionFormatError("version 1 sessions cannot contain calibration metadata")
+        elif not self.calibration_id or self.calibration_revision is None:
+            raise SessionFormatError("version 2 sessions require calibration provenance")
 
 
 def _string(value: dict[object, object], key: str) -> str:
@@ -145,6 +170,13 @@ def _nonnegative_integer(value: dict[object, object], key: str) -> int:
     item = value[key]
     if type(item) is not int or item < 0:
         raise TypeError(f"{key} must be a non-negative integer")
+    return item
+
+
+def _positive_integer(value: dict[object, object], key: str) -> int:
+    item = _nonnegative_integer(value, key)
+    if item == 0:
+        raise TypeError(f"{key} must be a positive integer")
     return item
 
 

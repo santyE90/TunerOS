@@ -47,4 +47,16 @@ canbus::CanFrame make_dme_thermal_electrical_frame(const simulator::VehicleState
   return frame;
 }
 
+canbus::CanFrame make_dme_combustion_observation_frame(const simulator::VehicleState& state) {
+  canbus::CanFrame frame{
+      .arbitration_id = kDmeCombustionObservationFrameId,
+      .payload_length = kDmeCombustionObservationPayloadLength,
+      .timestamp_microseconds = state.timestamp.microseconds,
+  };
+  frame.payload[0] = detail::encode_scaled_u8(state.lambda, 0.01, 0.0);
+  detail::pack_u16_little_endian(
+      frame.payload, 1, detail::encode_scaled_u16(state.ignition_advance_degrees, 0.1, -100.0));
+  return frame;
+}
+
 }  // namespace tuneros::ecu

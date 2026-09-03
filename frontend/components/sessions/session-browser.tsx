@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { fetchSessionDetail, fetchSessions } from "../../lib/api/client";
 import type { SessionDetail, SessionSummary } from "../../lib/api/types";
 import {
+  calibrationDisplayName,
   formatFrameCount,
   formatSessionDuration,
   sessionDisplayName,
@@ -103,7 +104,7 @@ export function SessionBrowser() {
             </span>
             <span>
               <strong>{formatSessionDuration(session.duration_microseconds)}</strong>
-              <small>{session.scenario ?? "scenario not supplied"}</small>
+              <small>{session.scenario ?? "scenario not supplied"} · {calibrationDisplayName(session)}</small>
             </span>
             <span className={`compatibility ${session.dbc_compatible ? "compatible" : "mismatch"}`}>
               {session.dbc_compatible ? "DBC MATCH" : "DBC MISMATCH"}
@@ -124,6 +125,7 @@ export function SessionBrowser() {
               <div><dt>Status</dt><dd>{selected.status}</dd></div>
               <div><dt>Created UTC</dt><dd>{selected.created_at_utc}</dd></div>
               <div><dt>Scenario</dt><dd>{selected.scenario ?? "Not supplied"}</dd></div>
+              <div><dt>Calibration</dt><dd>{calibrationDisplayName(selected)}</dd></div>
               <div><dt>Frames</dt><dd>{formatFrameCount(selected.frame_count)}</dd></div>
               <div><dt>Duration</dt><dd>{formatSessionDuration(selected.duration_microseconds)}</dd></div>
               <div><dt>First timestamp</dt><dd>{selected.first_timestamp_microseconds ?? "—"} µs</dd></div>

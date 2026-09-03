@@ -11,12 +11,19 @@ from tuneros.can.models import DecodedCanFrame, RawCanFrame, SignalValue
 
 _DBC_RESOURCE = files("tuneros.can").joinpath("dbc", "tuneros_simulation.dbc")
 AUTHORITATIVE_DBC_NAME = "tuneros_simulation.dbc"
+LEGACY_PHASE_8A_DBC_SHA256 = "320239cad283771dcffbcf293ed6d319ee11c4c383ab3da4d680a8dac16306f2"
 
 
 def authoritative_dbc_sha256() -> str:
     """Return the identity hash of the packaged authoritative synthetic DBC."""
 
     return sha256(_DBC_RESOURCE.read_bytes()).hexdigest()
+
+
+def is_supported_dbc_sha256(value: str) -> bool:
+    """Accept the current DBC and the additive Phase 8A schema used by legacy sessions."""
+
+    return value in (authoritative_dbc_sha256(), LEGACY_PHASE_8A_DBC_SHA256)
 
 
 class CanDecodeError(ValueError):

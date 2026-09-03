@@ -2,6 +2,7 @@
 
 #include <cstdint>
 
+#include "tuneros/simulator/calibration.hpp"
 #include "tuneros/simulator/contracts.hpp"
 #include "tuneros/simulator/faults.hpp"
 #include "tuneros/simulator/initial_conditions.hpp"
@@ -16,6 +17,7 @@ struct SimulationRunConfiguration {
   SimulationDuration fixed_step{kBaseSimulationStep};
   EnvironmentState environment{};
   SimulationInitialConditions initial_conditions{};
+  CalibrationId calibration{CalibrationId::kStock};
   FaultConfigurations faults{};
 
   friend bool operator==(const SimulationRunConfiguration&,
@@ -30,6 +32,8 @@ struct SimulationRunConfiguration {
     EnvironmentState environment = {});
 [[nodiscard]] SimulationRunConfiguration make_default_city_run_configuration(
     EnvironmentState environment = {});
+[[nodiscard]] SimulationRunConfiguration make_default_wot_pull_run_configuration(
+    EnvironmentState environment = {}, CalibrationId calibration = CalibrationId::kStock);
 
 class VehicleSimulation {
  public:

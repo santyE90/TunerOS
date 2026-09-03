@@ -3,6 +3,9 @@ import type {
   CanExplorerStatistics,
   CanMessageStatistics,
   CanWebSocketEvent,
+  CalibrationAxis,
+  CalibrationProfile,
+  CalibrationTable,
   DiagnosticDefinition,
   DiagnosticEvent,
   DiagnosticFreezeFrame,
@@ -71,7 +74,68 @@ function isSessionSummary(value: unknown): value is SessionSummary {
     value.status === "complete" &&
     isInteger(value.frame_count) &&
     isInteger(value.duration_microseconds) &&
-    typeof value.dbc_compatible === "boolean"
+    typeof value.dbc_compatible === "boolean" &&
+    isNullableString(value.calibration_id) &&
+    isNullableInteger(value.calibration_revision)
+  );
+}
+
+function isCalibrationAxis(value: unknown): value is CalibrationAxis {
+  return (
+    isRecord(value) &&
+    typeof value.name === "string" &&
+    typeof value.unit === "string" &&
+    Array.isArray(value.breakpoints) &&
+    value.breakpoints.length >= 2 &&
+    value.breakpoints.every(
+      (item, index, values) =>
+        typeof item === "number" &&
+        Number.isFinite(item) &&
+        (index === 0 || item > (values[index - 1] as number)),
+    )
+  );
+}
+
+function isCalibrationTable(value: unknown): value is CalibrationTable {
+  if (
+    !isRecord(value) ||
+    typeof value.table_id !== "string" ||
+    typeof value.name !== "string" ||
+    typeof value.value_unit !== "string" ||
+    !isCalibrationAxis(value.row_axis) ||
+    !(value.column_axis === null || isCalibrationAxis(value.column_axis)) ||
+    !Array.isArray(value.values) ||
+    !value.values.every(
+      (row) => Array.isArray(row) && row.every((item) => typeof item === "number" && Number.isFinite(item)),
+    )
+  ) return false;
+  const expectedRows = value.column_axis === null ? 1 : value.row_axis.breakpoints.length;
+  const expectedColumns = value.column_axis === null
+    ? value.row_axis.breakpoints.length
+    : value.column_axis.breakpoints.length;
+  return value.values.length === expectedRows && value.values.every((row) => row.length === expectedColumns);
+}
+
+function isCalibrationProfile(value: unknown): value is CalibrationProfile {
+  return (
+    isRecord(value) &&
+    typeof value.profile_id === "string" &&
+    typeof value.display_name === "string" &&
+    isInteger(value.revision) &&
+    typeof value.description === "string" &&
+    typeof value.synthetic === "boolean" &&
+    typeof value.disclaimer === "string" &&
+    Array.isArray(value.parameters) &&
+    value.parameters.every(
+      (item) =>
+        isRecord(item) &&
+        typeof item.name === "string" &&
+        typeof item.value === "number" &&
+        Number.isFinite(item.value) &&
+        typeof item.unit === "string",
+    ) &&
+    Array.isArray(value.tables) &&
+    value.tables.every(isCalibrationTable)
   );
 }
 
@@ -592,6 +656,20 @@ export function parseSessionReplay(value: unknown): SessionReplayResponse {
     source_mode: "replay",
     service_state: "running",
   };
+}
+
+export function parseCalibrations(value: unknown): CalibrationProfile[] {
+  if (!Array.isArray(value) || !value.every(isCalibrationProfile)) {
+    throw new Error("Backend returned an invalid calibration catalog response");
+  }
+  return value;
+}
+
+export function parseCalibration(value: unknown): CalibrationProfile {
+  if (!isCalibrationProfile(value)) {
+    throw new Error("Backend returned an invalid calibration profile response");
+  }
+  return value;
 }
 
 export function parseCatalog(value: unknown): SignalDefinition[] {

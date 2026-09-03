@@ -94,4 +94,24 @@ DrivetrainState evolve_city_drivetrain(double current_vehicle_speed_meters_per_s
   };
 }
 
+DrivetrainState evolve_wot_pull_drivetrain(double current_vehicle_speed_meters_per_second,
+                                           double normalized_engine_output,
+                                           double delta_time_seconds,
+                                           const VehicleProfile& profile) noexcept {
+  using namespace model_parameters;
+  const double output = std::clamp(normalized_engine_output, 0.0, 2.0);
+  const double resistance =
+      kCityRollingDecelerationMetersPerSecondSquared +
+      kCityDragDecelerationPerMeterPerSecond * current_vehicle_speed_meters_per_second;
+  const double acceleration =
+      output * kWotPullMaximumAccelerationMetersPerSecondSquared - resistance;
+  const double speed =
+      std::max(0.0, current_vehicle_speed_meters_per_second + acceleration * delta_time_seconds);
+  return {
+      .vehicle_speed_meters_per_second = speed,
+      .selected_gear = kWotPullGear,
+      .engine_speed_rpm = engine_speed_for_gear(speed, kWotPullGear, profile),
+  };
+}
+
 }  // namespace tuneros::simulator

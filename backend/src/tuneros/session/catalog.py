@@ -3,8 +3,8 @@
 from pathlib import Path
 from uuid import UUID
 
-from tuneros.can import authoritative_dbc_sha256
-from tuneros.session.errors import SessionIntegrityError
+from tuneros.can import is_supported_dbc_sha256
+from tuneros.session.errors import SessionDbcMismatchError, SessionIntegrityError
 from tuneros.session.models import SessionManifest
 from tuneros.session.reader import SessionReader
 from tuneros.session.recorder import DEFAULT_SESSION_ROOT
@@ -41,16 +41,17 @@ class SessionCatalog:
         artifact = self._contained_artifact(self._session_root / f"{canonical}.tuneros")
         if not artifact.is_dir():
             raise KeyError(f"unknown session {canonical}")
-        reader = SessionReader(
-            artifact,
-            expected_dbc_sha256=authoritative_dbc_sha256() if require_compatible_dbc else None,
-        )
+        reader = SessionReader(artifact)
         reader.validate_integrity()
+        if require_compatible_dbc and not self.compatibility(reader.manifest):
+            raise SessionDbcMismatchError(
+                "recorded DBC SHA-256 is not compatible with the installed authoritative DBC"
+            )
         self._validate_manifest_id(reader, canonical)
         return reader
 
     def compatibility(self, manifest: SessionManifest) -> bool:
-        return manifest.dbc_sha256 == authoritative_dbc_sha256()
+        return is_supported_dbc_sha256(manifest.dbc_sha256)
 
     def _contained_artifact(self, artifact: Path) -> Path:
         root = self._session_root.resolve()

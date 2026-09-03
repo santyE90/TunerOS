@@ -22,9 +22,10 @@ Status notation: **complete** is validated foundation; **planned** is not implem
 | 7A | Diagnostics & DTC Foundation | **Complete** |
 | 7B | Fault Injection & Diagnostic Validation | **Complete** |
 | 8A | Diagnostic Investigation Workflows | **Complete** |
+| 8B | Calibration & Tuning Foundation | **Complete** |
 | 9 | Expanded Fault Library & Effects | Planned |
 | 10 | Engine Model Expansion | Planned |
-| 11 | Calibration & Tuning | Planned |
+| 11 | Advanced Calibration Analysis | Planned |
 | 12 | Dyno Mode | Planned |
 | 13 | Data Analytics | Planned |
 | 14 | Predictive Diagnostics / ML | Planned |
@@ -106,13 +107,14 @@ sessions replay exact diagnostic state without persisting fault identity or deri
 
 Phase 8A adds isolated, bounded, session-first investigation: raw and decoded evidence, diagnostic
 state at an integer simulation timestamp, freeze-frame/event correlation, local cursor inspection,
-explicit healthy-session comparison, and deterministic JSON export. Version-one raw sessions remain
-canonical and no active source is mutated.
+explicit comparison peers, and deterministic JSON export. Raw sessions remain canonical and no
+active source is mutated.
 
-The recommended next step is Phase 8B, Investigation Usability and Session Indexing Contracts. It
-should first measure larger physical-CAN-like artifacts, then define a trustworthy optional index
-and richer waveform navigation without changing canonical raw evidence or introducing tuning.
+Phase 8B adds immutable synthetic Stock and Stage 1 C++ profiles, validated interpolated maps,
+calibration-sensitive boost/lambda/ignition/longitudinal response, a fixed-third-gear 12-second
+WOT_PULL, one additive WOT-only DME observation frame, read-only catalog/UI, and v2 session
+provenance while retaining v1 compatibility. It adds no real tuning or flashing path.
 
-Further ECU behavior, physical CAN, authentic vehicle diagnostics, calibration behavior, and frontend product work
-remain later phases. A later phase begins only after its required contracts and authenticity
-assumptions are documented and the preceding foundation remains testable.
+The recommended next phase should define Phase 9A contracts before implementation, with a narrow
+focus such as investigation indexing/usability for larger immutable raw artifacts. Dyno analysis,
+physical CAN, authentic BMW calibration data, and ECU flashing remain later work.

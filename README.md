@@ -7,7 +7,7 @@ and a browser interface. The first reference vehicle is a 2010 BMW E90 335i with
 engine.
 
 > **Current status:** Phase 0, Phases 1A–1C, Phases 2A–2C, Phase 3A, Phases 4A–4B,
-> Phases 5A–5B, Phase 6A, Phases 7A–7B, and Phase 8A are complete. C++ provides
+> Phases 5A–5B, Phase 6A, Phases 7A–7B, and Phases 8A–8B are complete. C++ provides
 > deterministic vehicle simulation, independent simulated DME and DSC publication, globally ordered
 > synthetic Classic CAN, and in-memory transport. A versioned binary TCP loopback gateway carries
 > the combined raw bus live into
@@ -28,9 +28,12 @@ engine.
 > Historical diagnostic investigation correlates bounded recorded-session raw CAN, exact decoded
 > observations, DTC state/events, and freeze frames. It supports explicit compatible healthy-
 > baseline comparison and deterministic backend JSON evidence export without mutating replay.
+> Phase 8B adds simulation-only immutable Stock and Stage 1 profiles, deterministic WOT_PULL,
+> calibration provenance, read-only calibration APIs, and an engineering calibration page. These
+> profiles are synthetic TunerOS assumptions, not BMW factory data or flashable tunes.
 > These definitions are not authentic BMW traffic. Database indexing, advanced playback controls,
 > persistent session indexing, advanced waveform tooling, CAN transmission, a fault-control UI/API,
-> authentic OBD/UDS diagnostics, tuning, physical CAN, ML, authentication, and general simulator
+> authentic OBD/UDS diagnostics, real ECU tuning/flashing, physical CAN, ML, authentication, and general simulator
 > controls are not implemented.
 
 ## Architecture at a glance
@@ -181,8 +184,10 @@ python -m tuneros.api --gateway-port 45800 --record-session `
   --session-name "CITY baseline" --scenario city
 ```
 
-Normal gateway EOF publishes a version-one `<uuid>.tuneros/` artifact under `data/sessions` by
-default. Set `TUNEROS_SESSION_ROOT` or pass `--session-root` to change it. Replay needs no C++ process:
+Normal gateway EOF publishes a `<uuid>.tuneros/` artifact under `data/sessions`. Recordings without
+calibration provenance use legacy v1; supplying `--calibration stock|stage-1` to both the gateway
+and recorder produces v2 provenance. Set `TUNEROS_SESSION_ROOT` or pass `--session-root` to change
+it. Replay needs no C++ process:
 
 ```powershell
 python -m tuneros.api --replay-session <session-uuid>
@@ -223,9 +228,17 @@ event while observing replay. `/sessions/{uuid}/investigate` uses simulation-tim
 isolated bounded scan of the validated raw artifact. The workspace correlates telemetry plots, a
 shared latest-at-or-before cursor, nearby raw CAN and frame detail, diagnostic transitions, and
 existing freeze-frame evidence. An explicitly selected compatible session can be overlaid as a
-healthy baseline around its own center, with simple deterministic statistics. **Export Evidence**
+comparison baseline around its own center, with simple deterministic statistics. **Export Evidence**
 downloads format-versioned deterministic JSON from the backend. Replay remains a separate active-
 source workflow. See [Diagnostic investigation workflows](docs/INVESTIGATION.md).
+
+## Simulation calibration
+
+The gateway accepts `--scenario wot-pull --calibration stock|stage-1`; Stock is the default. The
+12-second fixed-third-gear pull publishes calibration-dependent MAP, lambda, ignition, and vehicle
+response through CAN. Open `/calibration` to inspect the read-only synthetic maps and `/sessions`
+to compare recorded pulls. These are TunerOS assumptions, not BMW data or real tunes. See
+[Calibration and tuning foundation](docs/CALIBRATION.md).
 
 ## PostgreSQL
 

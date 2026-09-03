@@ -231,6 +231,8 @@ class SessionSummaryResponse(ApiModel):
     frame_count: int
     duration_microseconds: int
     dbc_compatible: bool
+    calibration_id: str | None
+    calibration_revision: int | None
 
 
 class SessionDetailResponse(SessionSummaryResponse):
@@ -250,6 +252,38 @@ class SessionReplayResponse(ApiModel):
     session_name: str | None
     source_mode: Literal["replay"] = "replay"
     service_state: Literal["running"] = "running"
+
+
+class CalibrationAxisResponse(ApiModel):
+    name: str
+    unit: str
+    breakpoints: list[float]
+
+
+class CalibrationTableResponse(ApiModel):
+    table_id: str
+    name: str
+    value_unit: str
+    row_axis: CalibrationAxisResponse
+    column_axis: CalibrationAxisResponse | None
+    values: list[list[float]]
+
+
+class CalibrationParameterResponse(ApiModel):
+    name: str
+    value: float
+    unit: str
+
+
+class CalibrationProfileResponse(ApiModel):
+    profile_id: str
+    display_name: str
+    revision: int
+    description: str
+    synthetic: Literal[True]
+    disclaimer: str
+    parameters: list[CalibrationParameterResponse]
+    tables: list[CalibrationTableResponse]
 
 
 class InvestigationWindowResponse(ApiModel):

@@ -14,7 +14,11 @@ import {
   parseStatus,
   parseWebSocketEvent,
 } from "../api/validation";
-import { formatSessionDuration, sessionDisplayName } from "../sessions/format";
+import {
+  calibrationDisplayName,
+  formatSessionDuration,
+  sessionDisplayName,
+} from "../sessions/format";
 import {
   formatRawValue,
   metersPerSecondToKilometersPerHour,
@@ -316,6 +320,8 @@ describe("boundary validation and display transforms", () => {
       frame_count: 1565,
       duration_microseconds: 6_000_000,
       dbc_compatible: true,
+      calibration_id: null,
+      calibration_revision: null,
     } as const;
     const detail = {
       ...summary,
@@ -352,5 +358,9 @@ describe("boundary validation and display transforms", () => {
     expect(() => parseSessions([{ ...summary, frame_count: "many" }])).toThrow(/session list/);
     expect(formatSessionDuration(summary.duration_microseconds)).toBe("6.000 s");
     expect(sessionDisplayName(summary)).toBe("Session 12345678");
+    expect(calibrationDisplayName(summary)).toBe("Unknown / Legacy");
+    expect(
+      calibrationDisplayName({ ...summary, calibration_id: "stage-1", calibration_revision: 1 }),
+    ).toBe("Stage 1 r1");
   });
 });

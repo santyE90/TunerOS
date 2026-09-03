@@ -98,5 +98,10 @@ a dated superseding entry.
 | Align comparisons by explicit relative centers | Independently selected primary and baseline centers preserve observations without wall-time or automatic semantic/event matching. |
 | Use latest-at-or-before cursor semantics without interpolation | Exact observed samples remain distinguishable from estimated values in engineering evidence. |
 | Generate deterministic JSON evidence in the backend | Format-versioned bounded exports contain no wall-clock creation time or filesystem path; React does not recreate canonical evidence and PDF is deferred. |
+| Keep C++ calibration authoritative | Only C++ maps/equations affect VehicleState; Python exposes read-only display metadata and downstream behavior must cross CAN/DBC. |
+| Make Stock the immutable default and isolate old scenarios | No-option runs preserve established behavior and exact CITY contracts while WOT_PULL opts into calibration response. |
+| Add one WOT-only observation frame | Publishing lambda/ignition at `0x503` leaves every existing ID, DLC, layout, non-WOT schedule, and CITY count unchanged. |
+| Version session provenance without relabeling history | v2 adds calibration ID/revision; v1 stays valid and displays Unknown / Legacy because CAN cannot prove its originating profile. |
+| Exclude calibration from comparison compatibility and diagnostics | A profile is provenance, not a sensor, health class, rule input, or reason peers cannot be compared. |
 | Avoid unnecessary distributed or units infrastructure | Message brokers, cloud services, and a dimensional-analysis library add no Phase 0 engineering value. |
 | Defer persistence frameworks and schemas | ORMs, database migrations, brokers, and unrelated application infrastructure should follow concrete requirements. |

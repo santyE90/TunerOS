@@ -84,6 +84,9 @@ def test_empty_status_snapshot_catalog_statistics_and_openapi() -> None:
         diagnostics = client.get("/api/v1/diagnostics")
         dtcs = client.get("/api/v1/diagnostics/dtcs")
         diagnostic_events = client.get("/api/v1/diagnostics/events")
+        calibrations = client.get("/api/v1/calibrations")
+        stage1 = client.get("/api/v1/calibrations/stage-1")
+        missing_calibration = client.get("/api/v1/calibrations/stage-2")
 
     assert status.status_code == 200
     assert status.json() == {
@@ -96,7 +99,7 @@ def test_empty_status_snapshot_catalog_statistics_and_openapi() -> None:
     }
     assert snapshot.json()["signals"] == []
     assert snapshot.json()["observation_timestamp_microseconds"] is None
-    assert len(catalog.json()) == 17
+    assert len(catalog.json()) == 19
     assert statistics.json()["frames_by_message"] == []
     assert openapi.status_code == 200
     assert can_frames.json() == []
@@ -108,6 +111,11 @@ def test_empty_status_snapshot_catalog_statistics_and_openapi() -> None:
     assert diagnostics.json()["source"]["mode"] == "live"
     assert dtcs.json() == []
     assert diagnostic_events.json() == []
+    assert calibrations.status_code == 200
+    assert [item["profile_id"] for item in calibrations.json()] == ["stock", "stage-1"]
+    assert stage1.json()["synthetic"] is True
+    assert stage1.json()["tables"][1]["value_unit"] == "kPa_gauge"
+    assert missing_calibration.status_code == 404
 
 
 def test_diagnostic_rest_lifecycle_freeze_frame_filter_limit_and_clear() -> None:
@@ -454,6 +462,8 @@ def test_session_list_detail_source_and_replay_api(tmp_path) -> None:
                 "frame_count": 2,
                 "duration_microseconds": 20_000,
                 "dbc_compatible": True,
+                "calibration_id": None,
+                "calibration_revision": None,
             }
         ]
         assert detail.status_code == 200

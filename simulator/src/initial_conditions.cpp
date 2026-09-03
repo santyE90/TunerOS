@@ -95,4 +95,22 @@ SimulationInitialConditions make_city_initial_conditions(
   };
 }
 
+SimulationInitialConditions make_wot_pull_initial_conditions(
+    const EnvironmentState& environment) noexcept {
+  using namespace model_parameters;
+  return {
+      .engine_running = true,
+      .engine_speed_rpm = kWotPullInitialSpeedMetersPerSecond * kGear3RpmPerMeterPerSecond,
+      .coolant_temperature_celsius =
+          environment.ambient_temperature_celsius + kCityInitialCoolantAboveAmbientCelsius,
+      .oil_temperature_celsius =
+          environment.ambient_temperature_celsius + kCityInitialOilAboveAmbientCelsius,
+      .intake_air_temperature_celsius =
+          environment.ambient_temperature_celsius + kCityInitialIntakeAirAboveAmbientCelsius,
+      .battery_voltage_volts = kChargingVoltageVolts,
+      .vehicle_speed_meters_per_second = kWotPullInitialSpeedMetersPerSecond,
+      .current_gear = kWotPullGear,
+  };
+}
+
 }  // namespace tuneros::simulator

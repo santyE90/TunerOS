@@ -1,4 +1,4 @@
-VERSION "TunerOS synthetic simulation CAN database 1.1"
+VERSION "TunerOS synthetic simulation CAN database 1.2"
 
 NS_ :
     NS_DESC_
@@ -27,6 +27,10 @@ BO_ 1282 DmeThermalElectrical: 7 TunerOsSimulatedDme
  SG_ IntakeAirTemperature : 32|16@1+ (0.1,-100) [-100|6453.5] "degC" Vector__XXX
  SG_ BatteryVoltage : 48|8@1+ (0.1,0) [0|25.5] "V" Vector__XXX
 
+BO_ 1283 DmeCombustionObservation: 3 TunerOsSimulatedDme
+ SG_ Lambda : 0|8@1+ (0.01,0) [0|2.55] "lambda" Vector__XXX
+ SG_ IgnitionTiming : 8|16@1+ (0.1,-100) [-100|6453.5] "degrees" Vector__XXX
+
 BO_ 1312 DscVehicleMotion: 3 TunerOsSimulatedDsc
  SG_ VehicleSpeed : 0|16@1+ (0.01,0) [0|655.35] "m/s" Vector__XXX
  SG_ CurrentGear : 16|8@1+ (1,0) [0|6] "gear" Vector__XXX
@@ -43,6 +47,7 @@ CM_ BU_ TunerOsSimulatedDsc "TunerOS simulated DSC publisher; no ABS, traction, 
 CM_ BO_ 1280 "Synthetic 100 Hz fast-engine publication.";
 CM_ BO_ 1281 "Synthetic 50 Hz air/load publication.";
 CM_ BO_ 1282 "Synthetic 10 Hz thermal/electrical publication.";
+CM_ BO_ 1283 "Synthetic 50 Hz lambda and ignition observation, published for WOT_PULL.";
 CM_ BO_ 1312 "Synthetic 50 Hz vehicle-motion publication; not authentic BMW DSC traffic.";
 CM_ BO_ 1313 "Synthetic 50 Hz equal wheel-speed publication; not authentic BMW DSC traffic.";
 
@@ -51,5 +56,6 @@ BA_DEF_DEF_ "GenMsgCycleTime" 0;
 BA_ "GenMsgCycleTime" BO_ 1280 10;
 BA_ "GenMsgCycleTime" BO_ 1281 20;
 BA_ "GenMsgCycleTime" BO_ 1282 100;
+BA_ "GenMsgCycleTime" BO_ 1283 20;
 BA_ "GenMsgCycleTime" BO_ 1312 20;
 BA_ "GenMsgCycleTime" BO_ 1313 20;

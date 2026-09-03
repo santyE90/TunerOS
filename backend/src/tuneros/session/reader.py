@@ -9,6 +9,7 @@ from tuneros.session.errors import (
     SessionDbcMismatchError,
     SessionFormatError,
     SessionIntegrityError,
+    SessionVersionError,
 )
 from tuneros.session.format import (
     FRAMES_FILENAME,
@@ -52,7 +53,11 @@ class SessionReader:
         try:
             with self._frames_path.open("rb") as stream:
                 header = stream.read(SESSION_FILE_HEADER_SIZE)
-                decode_session_header(header)
+                version = decode_session_header(header)
+                if version != self._manifest.format_version:
+                    raise SessionVersionError(
+                        "session frame version does not match manifest format version"
+                    )
                 hasher.update(header)
                 while True:
                     record = stream.read(RAW_CAN_RECORD_SIZE)
@@ -90,7 +95,11 @@ class SessionReader:
         try:
             with self._frames_path.open("rb") as stream:
                 header = stream.read(SESSION_FILE_HEADER_SIZE)
-                decode_session_header(header)
+                version = decode_session_header(header)
+                if version != self._manifest.format_version:
+                    raise SessionVersionError(
+                        "session frame version does not match manifest format version"
+                    )
                 hasher.update(header)
                 while True:
                     record = stream.read(RAW_CAN_RECORD_SIZE)

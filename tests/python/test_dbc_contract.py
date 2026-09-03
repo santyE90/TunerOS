@@ -19,11 +19,12 @@ def test_authoritative_dbc_message_contract() -> None:
         0x500: ("DmeFastEngine", 5, 10, ["TunerOsSimulatedDme"]),
         0x501: ("DmeAirLoad", 4, 20, ["TunerOsSimulatedDme"]),
         0x502: ("DmeThermalElectrical", 7, 100, ["TunerOsSimulatedDme"]),
+        0x503: ("DmeCombustionObservation", 3, 20, ["TunerOsSimulatedDme"]),
         0x520: ("DscVehicleMotion", 3, 20, ["TunerOsSimulatedDsc"]),
         0x521: ("DscWheelSpeeds", 8, 20, ["TunerOsSimulatedDsc"]),
     }
 
-    assert len(database.frames) == 5
+    assert len(database.frames) == 6
     for frame in database.frames:
         assert (frame.name, frame.size, frame.cycle_time, frame.transmitters) == expected[
             frame.arbitration_id.id
@@ -74,6 +75,10 @@ def test_authoritative_dbc_signal_contract() -> None:
             "OilTemperature": (16, 16, Decimal("0.1"), Decimal("-100"), "degC"),
             "IntakeAirTemperature": (32, 16, Decimal("0.1"), Decimal("-100"), "degC"),
             "BatteryVoltage": (48, 8, Decimal("0.1"), Decimal("0"), "V"),
+        },
+        0x503: {
+            "Lambda": (0, 8, Decimal("0.01"), Decimal("0"), "lambda"),
+            "IgnitionTiming": (8, 16, Decimal("0.1"), Decimal("-100"), "degrees"),
         },
         0x520: {
             "VehicleSpeed": (0, 16, Decimal("0.01"), Decimal("0"), "m/s"),

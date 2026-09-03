@@ -95,4 +95,18 @@ inline constexpr std::uint64_t kCityFinalDecelerationTimestampMicroseconds = 88'
 inline constexpr std::uint64_t kCityFinalStopIntentTimestampMicroseconds = 100'000'000;
 inline constexpr std::uint64_t kDefaultCityDurationMicroseconds = 105'000'000;
 
+// Phase 8B standardized WOT_PULL assumptions. These are synthetic, not BMW calibration data.
+inline constexpr double kWotPullInitialSpeedMetersPerSecond = 15.0;
+inline constexpr std::int8_t kWotPullGear = 3;
+inline constexpr double kWotPullPreloadAccelerator = 0.12;
+inline constexpr double kWotPullPreloadRequestedLoad = 0.18;
+inline constexpr double kWotPullAccelerator = 1.0;
+inline constexpr double kWotPullRequestedLoad = 1.0;
+inline constexpr double kWotPullMaximumAccelerationMetersPerSecondSquared = 3.0;
+inline constexpr double kWotPullLambdaTimeConstantSeconds = 0.25;
+inline constexpr double kWotPullIgnitionTimeConstantSeconds = 0.20;
+inline constexpr double kWotPullIntakeAirBoostHeatingCelsiusPerKpa = 0.08;
+inline constexpr std::uint64_t kWotPullThrottleTimestampMicroseconds = 2'000'000;
+inline constexpr std::uint64_t kDefaultWotPullDurationMicroseconds = 12'000'000;
+
 }  // namespace tuneros::simulator::model_parameters

@@ -33,7 +33,11 @@ import {
   relativeTimestampMicroseconds,
   toggleInvestigationSignal,
 } from "../../lib/investigation/state";
-import { formatSessionDuration, sessionDisplayName } from "../../lib/sessions/format";
+import {
+  calibrationDisplayName,
+  formatSessionDuration,
+  sessionDisplayName,
+} from "../../lib/sessions/format";
 
 export function InvestigationWorkspace() {
   const params = useParams<{ sessionId: string }>();
@@ -159,6 +163,7 @@ export function InvestigationWorkspace() {
           <div><dt>Frames</dt><dd>{result.session.frame_count.toLocaleString("en-US")}</dd></div>
           <div><dt>Duration</dt><dd>{formatSessionDuration(result.session.duration_microseconds)}</dd></div>
           <div><dt>Vehicle</dt><dd>{result.session.vehicle_profile_id}</dd></div>
+          <div><dt>Calibration</dt><dd>{calibrationDisplayName(result.session)}</dd></div>
           <div><dt>DBC</dt><dd>{result.session.dbc_compatible ? "MATCH" : "MISMATCH"}</dd></div>
         </dl>
       </section>
@@ -167,13 +172,13 @@ export function InvestigationWorkspace() {
         <label>Center µs<input name="center" type="number" min="0" defaultValue={result.window.center_timestamp_microseconds} /></label>
         <label>Before µs<input name="before" type="number" min="0" defaultValue={result.window.requested_before_microseconds} /></label>
         <label>After µs<input name="after" type="number" min="0" defaultValue={result.window.requested_after_microseconds} /></label>
-        <label>Healthy baseline<select value={parsed.state?.baselineSessionId ?? ""} onChange={(event) => replaceQuery({ baseline: event.target.value || undefined })}><option value="">None</option>{sessions.filter((item) => item.session_id !== sessionId && item.dbc_compatible).map((item) => <option key={item.session_id} value={item.session_id}>{sessionDisplayName(item)}</option>)}</select></label>
+        <label>Comparison baseline<select value={parsed.state?.baselineSessionId ?? ""} onChange={(event) => replaceQuery({ baseline: event.target.value || undefined })}><option value="">None</option>{sessions.filter((item) => item.session_id !== sessionId && item.dbc_compatible).map((item) => <option key={item.session_id} value={item.session_id}>{sessionDisplayName(item)} · {calibrationDisplayName(item)}</option>)}</select></label>
         <label>Baseline center µs<input name="baselineCenter" type="number" min="0" defaultValue={comparison?.baseline.window.center_timestamp_microseconds ?? parsed.state?.baselineCenterMicroseconds ?? result.window.center_timestamp_microseconds} /></label>
         <button type="submit">Apply window</button>
         <a className="evidence-export" href={investigationExportUrl(sessionId, exportQuery)} download>Export Evidence</a>
       </form>
       {error === null ? null : <p className="investigation-error" role="alert">{error}</p>}
-      {comparison === null ? null : <section className="comparison-identities"><div><span>PRIMARY</span><strong>{sessionDisplayName(comparison.primary.session)}</strong><small className="mono">center {comparison.primary.window.center_timestamp_microseconds} µs · actual {comparison.primary.window.start_timestamp_microseconds}–{comparison.primary.window.end_timestamp_microseconds} µs</small></div><div><span>BASELINE</span><strong>{sessionDisplayName(comparison.baseline.session)}</strong><small className="mono">center {comparison.baseline.window.center_timestamp_microseconds} µs · actual {comparison.baseline.window.start_timestamp_microseconds}–{comparison.baseline.window.end_timestamp_microseconds} µs</small></div></section>}
+      {comparison === null ? null : <section className="comparison-identities"><div><span>PRIMARY · {calibrationDisplayName(comparison.primary.session)}</span><strong>{sessionDisplayName(comparison.primary.session)}</strong><small className="mono">center {comparison.primary.window.center_timestamp_microseconds} µs · actual {comparison.primary.window.start_timestamp_microseconds}–{comparison.primary.window.end_timestamp_microseconds} µs</small></div><div><span>BASELINE · {calibrationDisplayName(comparison.baseline.session)}</span><strong>{sessionDisplayName(comparison.baseline.session)}</strong><small className="mono">center {comparison.baseline.window.center_timestamp_microseconds} µs · actual {comparison.baseline.window.start_timestamp_microseconds}–{comparison.baseline.window.end_timestamp_microseconds} µs</small></div></section>}
 
       <InvestigationTimeline result={result} cursor={activeCursor} onCursor={setCursor} />
 
@@ -267,7 +272,7 @@ function CursorValues({ result, baseline, cursor }: Readonly<{ result: Investiga
 function sampleValue(sample: SignalSample | undefined): string { return sample === undefined ? "—" : String(sample.value); }
 
 function ComparisonSummary({ comparison }: Readonly<{ comparison: InvestigationComparison }>) {
-  return <div className="comparison-summary"><div className="investigation-heading"><div><span className="section-kicker">Relative-center alignment</span><h3>Primary / healthy baseline statistics</h3></div><span>No causality or anomaly score implied</span></div>{comparison.diagnostic_code === null ? <p className="comparison-diagnostic-note">No diagnostic code selected for event comparison.</p> : <div className="comparison-diagnostic-note"><span><code>{comparison.diagnostic_code}</code> event in primary window: {comparison.primary_has_diagnostic_event ? "yes" : "no"}</span><span>event in baseline window: {comparison.baseline_has_diagnostic_event ? "yes" : "no"}</span></div>}<table><thead><tr><th>Signal</th><th>Primary min / mean / max</th><th>Baseline min / mean / max</th><th>Mean Δ</th><th>Count P / B</th></tr></thead><tbody>{comparison.signal_comparisons.map((item) => <tr key={canonicalSignal(item.key)}><td>{item.key.signal_name}</td><td className="mono">{summaryValues(item.primary)}</td><td className="mono">{summaryValues(item.baseline)}</td><td className="mono">{item.mean_difference?.toFixed(3) ?? "—"}</td><td>{item.primary.observation_count} / {item.baseline.observation_count}</td></tr>)}</tbody></table></div>;
+  return <div className="comparison-summary"><div className="investigation-heading"><div><span className="section-kicker">Relative-center alignment</span><h3>Primary / baseline statistics</h3></div><span>No causality or anomaly score implied</span></div>{comparison.diagnostic_code === null ? <p className="comparison-diagnostic-note">No diagnostic code selected for event comparison.</p> : <div className="comparison-diagnostic-note"><span><code>{comparison.diagnostic_code}</code> event in primary window: {comparison.primary_has_diagnostic_event ? "yes" : "no"}</span><span>event in baseline window: {comparison.baseline_has_diagnostic_event ? "yes" : "no"}</span></div>}<table><thead><tr><th>Signal</th><th>Primary min / mean / max</th><th>Baseline min / mean / max</th><th>Mean Δ</th><th>Count P / B</th></tr></thead><tbody>{comparison.signal_comparisons.map((item) => <tr key={canonicalSignal(item.key)}><td>{item.key.signal_name}</td><td className="mono">{summaryValues(item.primary)}</td><td className="mono">{summaryValues(item.baseline)}</td><td className="mono">{item.mean_difference?.toFixed(3) ?? "—"}</td><td>{item.primary.observation_count} / {item.baseline.observation_count}</td></tr>)}</tbody></table></div>;
 }
 
 function summaryValues(summary: InvestigationComparison["signal_comparisons"][number]["primary"]): string { return summary.mean === null ? `${String(summary.first)} → ${String(summary.last)}` : `${summary.minimum?.toFixed(2)} / ${summary.mean.toFixed(2)} / ${summary.maximum?.toFixed(2)}`; }

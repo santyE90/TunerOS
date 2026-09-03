@@ -3,8 +3,8 @@
 ## Purpose and boundary
 
 Phase 8A connects recorded raw CAN, decoded telemetry, deterministic diagnostics, freeze frames,
-and healthy-session comparison around one integer simulation timestamp. It is read-only historical
-analysis. A version-one `.tuneros` raw-CAN artifact remains the only canonical recording; decoded
+and explicit session comparison around one integer simulation timestamp. It is read-only historical
+analysis. A validated `.tuneros` raw-CAN artifact remains the only canonical recording; decoded
 series, DTC state, and exports are rebuilt on demand and are not written beside or into the session.
 
 ```text
@@ -114,3 +114,11 @@ Phase 8A performs a correctness-first streaming scan from session start for each
 while a persistent index would add invalidation, schema, and trust complexity prematurely. An index,
 advanced waveform tooling, raw byte diff, PDF output, live-history caching, tuning, physical CAN,
 and OEM diagnostic protocols remain deferred.
+
+## Phase 8B tuning comparison
+
+Session identity panels show calibration provenance for Primary and Baseline. Missing v1 identity is
+**Unknown / Legacy**. Calibration equality is not required: supported DBC, CAN-network identity,
+and vehicle-profile identity determine compatibility. Stage 1 WOT_PULL can therefore be compared
+with Stock at explicit equal centers. Differences reconstruct from raw CAN; Investigation contains
+no calibration model.

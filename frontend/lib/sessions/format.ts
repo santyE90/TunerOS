@@ -11,3 +11,15 @@ export function formatSessionDuration(durationMicroseconds: number): string {
 export function formatFrameCount(frameCount: number): string {
   return frameCount.toLocaleString("en-US");
 }
+
+export function calibrationDisplayName(session: SessionSummary): string {
+  if (session.calibration_id === null || session.calibration_revision === null) {
+    return "Unknown / Legacy";
+  }
+  const name = session.calibration_id === "stage-1"
+    ? "Stage 1"
+    : session.calibration_id === "stock"
+      ? "Stock"
+      : session.calibration_id;
+  return `${name} r${session.calibration_revision}`;
+}

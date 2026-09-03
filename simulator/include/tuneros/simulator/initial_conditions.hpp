@@ -29,5 +29,7 @@ struct SimulationInitialConditions {
     const EnvironmentState& environment) noexcept;
 [[nodiscard]] SimulationInitialConditions make_city_initial_conditions(
     const EnvironmentState& environment) noexcept;
+[[nodiscard]] SimulationInitialConditions make_wot_pull_initial_conditions(
+    const EnvironmentState& environment) noexcept;
 
 }  // namespace tuneros::simulator

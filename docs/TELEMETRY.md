@@ -164,3 +164,10 @@ an isolated service. Exact observation timestamps and types are retained, the la
 sample at or before window start is supplied as context, and no samples are interpolated,
 downsampled, or persisted as a second telemetry recording. See
 [Diagnostic investigation workflows](INVESTIGATION.md).
+
+## Phase 8B WOT observations
+
+The DBC catalog adds Lambda and IgnitionTiming from WOT-only `DmeCombustionObservation`. They use
+the existing sample, provenance, history, freshness, replay, and investigation contracts. MAP and
+vehicle speed expose further profile response. Telemetry never reads calibration profiles and
+normal CITY still yields 93,467 updates.

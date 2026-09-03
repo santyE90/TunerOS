@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from tuneros.can import CanExplorer, TunerOsDbcDecoder, authoritative_dbc_sha256
+from tuneros.can import CanExplorer, TunerOsDbcDecoder, is_supported_dbc_sha256
 from tuneros.diagnostics import DiagnosticEngine, create_default_diagnostic_catalog
 from tuneros.session.reader import SessionReader
 from tuneros.telemetry import DEFAULT_HISTORY_CAPACITY, SignalCatalog, TelemetryEngine
@@ -25,11 +25,11 @@ def replay_session(
     explorer: CanExplorer | None = None,
     history_capacity: int = DEFAULT_HISTORY_CAPACITY,
 ) -> SessionReplayResult:
-    if reader.manifest.dbc_sha256 != authoritative_dbc_sha256():
+    if not is_supported_dbc_sha256(reader.manifest.dbc_sha256):
         from tuneros.session.errors import SessionDbcMismatchError
 
         raise SessionDbcMismatchError(
-            "recorded DBC SHA-256 does not match the installed authoritative DBC"
+            "recorded DBC SHA-256 is not compatible with the installed authoritative DBC"
         )
     reader.validate_integrity()
     active_decoder = decoder or TunerOsDbcDecoder()

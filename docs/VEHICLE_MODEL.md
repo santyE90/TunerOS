@@ -198,7 +198,7 @@ CITY remains naturally aspirated in the simplified pressure response: requested 
 MAP moves from the 0.40 ambient-pressure idle ratio toward, but never above, ambient as requested
 load rises. This is an illustrative vacuum/load relationship, not an N54 turbo or throttle model.
 
-HIGHWAY, SPIRITED, WOT_PULL, and DYNO_PULL remain unsupported. Phase 1C adds no reverse motion,
+HIGHWAY, SPIRITED, and DYNO_PULL remain unsupported. Phase 8B implements WOT_PULL. Phase 1C adds no reverse motion,
 engine stopping, torque production, road load, turbo dynamics, clutch behavior, wheel dynamics, or
 traction behavior.
 
@@ -218,3 +218,11 @@ unchanged.
 An empty fault list follows the original equations and observations exactly. Fault parameters,
 interval semantics, and the synthetic disclaimer are documented in
 [Fault injection](FAULT_INJECTION.md).
+
+## Phase 8B calibration-sensitive state
+
+WOT_PULL dynamically models throttle/load, requested and actual boost/MAP, lambda, ignition,
+longitudinal speed/RPM, intake-air temperature, and the existing thermal/electrical fields. It uses
+configured ambient pressure for absolute MAP. Profile identity is not a `VehicleState` field or a
+fake sensor. IDLE/CITY retain their established equations. Exact synthetic parameters are in
+[Calibration and tuning foundation](CALIBRATION.md).

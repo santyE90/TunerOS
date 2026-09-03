@@ -256,3 +256,10 @@ tuneros_can <- tuneros_can_gateway
 tuneros_can + tuneros_simulator <- tuneros_dme
 tuneros_can_gateway + tuneros_dme + tuneros_simulator <- tuneros_gateway_sim
 ```
+
+## Phase 8B additive observation
+
+WOT_PULL alone enables `0x503 DmeCombustionObservation`, DLC 3, at 50 Hz. Its DBC-defined signals
+are Lambda (byte, 0.01) and IgnitionTiming (little-endian 16-bit, 0.1 with -100° offset). Existing
+IDs, DLCs, layouts, and schedules are unchanged, so normal CITY remains exactly 27,305 frames.
+Encoders saturate to wire range. No profile ID is transmitted. This is synthetic TunerOS traffic.

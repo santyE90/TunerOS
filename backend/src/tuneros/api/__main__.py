@@ -61,7 +61,14 @@ def main() -> None:
     source.add_argument("--replay-session", metavar="SESSION_UUID")
     parser.add_argument("--session-name")
     parser.add_argument("--scenario", help="Optional recording metadata; not inferred from CAN")
+    parser.add_argument(
+        "--calibration",
+        choices=("stock", "stage-1"),
+        help="Optional recording provenance; must match the separately launched simulator",
+    )
     arguments = parser.parse_args()
+    if arguments.calibration is not None and not arguments.record_session:
+        parser.error("--calibration requires --record-session")
     config = TelemetryServiceConfig(
         gateway_host=arguments.gateway_host,
         gateway_port=arguments.gateway_port,
@@ -79,6 +86,8 @@ def main() -> None:
             arguments.session_root,
             name=arguments.session_name,
             scenario=arguments.scenario,
+            calibration_id=arguments.calibration,
+            calibration_revision=1 if arguments.calibration is not None else None,
         )
         if arguments.record_session
         else None

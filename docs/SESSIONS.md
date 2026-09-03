@@ -189,3 +189,13 @@ diagnostic persistence, and returns only a bounded window around an integer simu
 The Sessions page therefore offers separate **Replay session** and **Investigate session** actions.
 Investigation never writes an export or decoded sidecar into `.tuneros`; see
 [Diagnostic investigation workflows](INVESTIGATION.md).
+
+## Phase 8B version two provenance
+
+Version 1 remains the legacy raw-CAN schema above and displays **Unknown / Legacy**; it is not
+silently called Stock. When profile ID and positive revision are supplied, the recorder creates
+version 2: its header version byte is `2`, and its strict manifest adds `calibration_id` and
+`calibration_revision`. The 19-byte frame records and hashes are unchanged. Readers require
+manifest/header agreement and accept both. The current additive DBC also accepts the known Phase 8A
+DBC hash because no old layout changed. Both versions replay/investigate from canonical raw frames;
+provenance is metadata, not persisted decoded state.

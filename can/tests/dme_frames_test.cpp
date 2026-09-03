@@ -33,6 +33,8 @@ simulator::VehicleState representative_state() {
       .coolant_temperature_celsius = 90.0,
       .oil_temperature_celsius = 100.0,
       .intake_air_temperature_celsius = 25.0,
+      .lambda = 0.86,
+      .ignition_advance_degrees = 8.0,
       .battery_voltage_volts = 14.2,
   };
 }
@@ -62,6 +64,15 @@ bool test_exact_thermal_electrical_layout() {
                     frame.payload_length == ecu::kDmeThermalElectricalPayloadLength &&
                     frame.payload == expected && frame.timestamp_microseconds == 123'000,
                 "Thermal/electrical frame must match its exact documented layout");
+}
+
+bool test_exact_combustion_observation_layout() {
+  const auto frame = ecu::make_dme_combustion_observation_frame(representative_state());
+  const std::array<std::uint8_t, 8> expected{0x56, 0x38, 0x04, 0, 0, 0, 0, 0};
+  return expect(frame.arbitration_id == ecu::kDmeCombustionObservationFrameId &&
+                    frame.payload_length == ecu::kDmeCombustionObservationPayloadLength &&
+                    frame.payload == expected && frame.timestamp_microseconds == 123'000,
+                "Combustion observation must encode lambda and ignition exactly");
 }
 
 bool test_saturation_and_non_finite_rejection() {
@@ -121,8 +132,8 @@ bool test_signal_endpoints_saturate() {
 
 int main() {
   if (!test_exact_fast_engine_layout() || !test_exact_air_load_layout() ||
-      !test_exact_thermal_electrical_layout() || !test_saturation_and_non_finite_rejection() ||
-      !test_signal_endpoints_saturate()) {
+      !test_exact_thermal_electrical_layout() || !test_exact_combustion_observation_layout() ||
+      !test_saturation_and_non_finite_rejection() || !test_signal_endpoints_saturate()) {
     return 1;
   }
   return 0;

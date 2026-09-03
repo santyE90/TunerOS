@@ -5,7 +5,7 @@ def test_decoder_exposes_library_independent_authoritative_metadata() -> None:
     metadata = TunerOsDbcDecoder().database_metadata
     messages = {message.arbitration_id: message for message in metadata.messages}
 
-    assert tuple(messages) == (0x500, 0x501, 0x502, 0x520, 0x521)
+    assert tuple(messages) == (0x500, 0x501, 0x502, 0x503, 0x520, 0x521)
     expected = {
         0x500: (
             "DmeFastEngine",
@@ -38,6 +38,12 @@ def test_decoder_exposes_library_independent_authoritative_metadata() -> None:
                 ("IntakeAirTemperature", "degC"),
                 ("BatteryVoltage", "V"),
             ),
+        ),
+        0x503: (
+            "DmeCombustionObservation",
+            "TunerOsSimulatedDme",
+            20_000,
+            (("Lambda", "lambda"), ("IgnitionTiming", "degrees")),
         ),
         0x520: (
             "DscVehicleMotion",

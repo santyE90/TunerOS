@@ -3,6 +3,7 @@ import type {
   CanExplorerFrame,
   CanExplorerStatistics,
   CanMessageStatistics,
+  CalibrationProfile,
   DiagnosticEvent,
   DiagnosticFreezeFrame,
   DiagnosticStatus,
@@ -25,6 +26,8 @@ import {
   parseCanFrames,
   parseCanMessages,
   parseCanStatistics,
+  parseCalibration,
+  parseCalibrations,
   parseDiagnosticDtc,
   parseDiagnosticDtcs,
   parseDiagnosticEvents,
@@ -166,6 +169,16 @@ export async function clearDiagnosticDtc(code: string): Promise<DiagnosticTroubl
 
 export async function fetchSessions(): Promise<SessionSummary[]> {
   return parseSessions(await getJson("/api/v1/sessions"));
+}
+
+export async function fetchCalibrations(): Promise<CalibrationProfile[]> {
+  return parseCalibrations(await getJson("/api/v1/calibrations"));
+}
+
+export async function fetchCalibration(profileId: string): Promise<CalibrationProfile> {
+  return parseCalibration(
+    await getJson(`/api/v1/calibrations/${encodeURIComponent(profileId)}`),
+  );
 }
 
 export async function fetchSessionDetail(sessionId: string): Promise<SessionDetail> {

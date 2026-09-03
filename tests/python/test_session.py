@@ -13,6 +13,7 @@ from tuneros.can import (
     authoritative_dbc_sha256,
     encode_raw_can_record,
 )
+from tuneros.investigation import InvestigationService
 from tuneros.session import (
     FRAMES_FILENAME,
     MANIFEST_FILENAME,
@@ -21,6 +22,7 @@ from tuneros.session import (
     SessionDbcMismatchError,
     SessionFormatError,
     SessionIntegrityError,
+    SessionManifest,
     SessionReader,
     SessionRecorder,
     SessionRecordingError,
@@ -94,6 +96,43 @@ def test_exact_header_record_manifest_and_round_trip(tmp_path: Path) -> None:
     assert not (tmp_path / f"{SESSION_ID}.partial").exists()
 
 
+def test_calibration_provenance_uses_version_two_without_breaking_legacy(tmp_path: Path) -> None:
+    calibrated_id = UUID("87654321-4321-4765-8765-876543218765")
+    recorder = SessionRecorder(
+        tmp_path,
+        session_id=calibrated_id,
+        created_at_utc=CREATED,
+        scenario="wot-pull",
+        calibration_id="stage-1",
+        calibration_revision=1,
+    )
+    recorder.record(_frames()[0])
+    manifest = recorder.complete()
+    reader = SessionReader(recorder.artifact_path)
+
+    assert manifest.format_version == 2
+    assert manifest.calibration_id == "stage-1"
+    assert manifest.calibration_revision == 1
+    assert (reader.artifact_path / FRAMES_FILENAME).read_bytes()[:8] == bytes.fromhex(
+        "54 4e 53 52 02 00 00 00"
+    )
+    assert list(reader.frames()) == [_frames()[0]]
+    assert SessionManifest.from_dict(manifest.to_dict()) == manifest
+
+
+def test_phase_8a_dbc_hash_remains_additively_compatible(tmp_path: Path) -> None:
+    legacy_hash = "320239cad283771dcffbcf293ed6d319ee11c4c383ab3da4d680a8dac16306f2"
+    reader = _record(tmp_path, dbc_sha256=legacy_hash)
+    catalog = SessionCatalog(tmp_path)
+
+    assert catalog.compatibility(reader.manifest)
+    assert catalog.reader(reader.manifest.session_id).manifest == reader.manifest
+    assert replay_session(reader).statistics.total_frames == 3
+    result = InvestigationService(catalog).investigate(reader.manifest.session_id)
+    assert result.session.calibration_id is None
+    assert len(result.raw_frames) == 3
+
+
 def test_recorder_rejects_backward_time_and_retains_incomplete_artifact(tmp_path: Path) -> None:
     recorder = SessionRecorder(tmp_path, session_id=SESSION_ID, created_at_utc=CREATED)
     recorder.record(RawCanFrame(0x500, b"\x01", 10))
@@ -138,7 +177,8 @@ def test_failed_atomic_publication_remains_incomplete(
     "header,error,match",
     [
         (b"FAIL\x01\x00\x00\x00", SessionFormatError, "magic"),
-        (b"TNSR\x02\x00\x00\x00", SessionVersionError, "version 2"),
+        (b"TNSR\x02\x00\x00\x00", SessionVersionError, "does not match"),
+        (b"TNSR\x03\x00\x00\x00", SessionVersionError, "version 3"),
     ],
 )
 def test_reader_rejects_invalid_header(

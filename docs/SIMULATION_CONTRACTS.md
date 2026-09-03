@@ -187,7 +187,7 @@ IDLE is a category B realistic simplification, not an implementation of BMW idle
 - engine-running battery voltage must stay in the category B range 13.0–15.0 V;
 - produce no faults and no CAN output because neither subsystem exists in Phase 1.
 
-HIGHWAY, SPIRITED, WOT_PULL, and DYNO_PULL remain reserved. Constructing a Phase 1C simulation
+HIGHWAY, SPIRITED, and DYNO_PULL remain reserved. WOT_PULL is implemented in Phase 8B. Constructing a simulation
 for any of them throws `std::invalid_argument` rather than substituting implemented behavior.
 
 ## Phase 1A numerical model and parameters
@@ -407,6 +407,14 @@ These categories must not collapse into one global configuration object.
 - **Telemetry:** decoded observations downstream of CAN/DBC, live or persisted.
 - **DTC:** diagnostic trouble code with a defined lifecycle.
 - **Freeze Frame:** snapshot captured when a qualifying diagnostic event occurs.
-- **Calibration:** future controller targets/maps/parameters, separate from vehicle identity.
+- **Calibration:** immutable synthetic controller targets/maps/parameters, separate from vehicle identity.
 - **DSC:** BMW terminology for Dynamic Stability Control.
 - **EGS:** BMW transmission-control terminology, applicable when that controller is modeled.
+
+## Phase 8B deterministic calibration contract
+
+`SimulationRunConfiguration.calibration` defaults to Stock and resolves to one process-lifetime
+immutable profile. WOT_PULL is 12,000,000 µs in fixed third gear with a 2,000,000 µs preload.
+Validated maps clamp at edges and interpolate deterministically. Response equations consume
+`delta_time_seconds`; the integer clock remains authoritative. Same configuration/step produces
+exact state sequences. See [Calibration and tuning foundation](CALIBRATION.md).
