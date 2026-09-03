@@ -147,6 +147,82 @@ export interface CanSourceStateEvent {
   source: TelemetrySource;
 }
 
+export type DiagnosticStatus = "pending" | "active" | "historical" | "cleared";
+export type DiagnosticSeverity = "info" | "warning" | "critical";
+export type DiagnosticEventType =
+  | "condition_detected"
+  | "condition_cleared"
+  | "dtc_confirmed"
+  | "dtc_recovered"
+  | "dtc_cleared";
+
+export interface DiagnosticDefinition {
+  code: string;
+  rule_id: string;
+  name: string;
+  description: string;
+  severity: DiagnosticSeverity;
+  source_system: string;
+  required_signals: SignalKey[];
+  confirmation_duration_microseconds: number;
+  recovery_duration_microseconds: number;
+  activation_description: string;
+  recovery_description: string;
+}
+
+export interface DiagnosticTroubleCode {
+  definition: DiagnosticDefinition;
+  status: DiagnosticStatus;
+  first_detected_timestamp_microseconds: number;
+  confirmed_timestamp_microseconds: number | null;
+  last_seen_timestamp_microseconds: number;
+  resolved_timestamp_microseconds: number | null;
+  cleared_timestamp_microseconds: number | null;
+  occurrence_count: number;
+  freeze_frame_available: boolean;
+}
+
+export interface DiagnosticSummary {
+  observation_timestamp_microseconds: number | null;
+  latest_telemetry_frame_sequence: number | null;
+  retained_event_count: number;
+  total_event_count: number;
+  latest_event_sequence: number | null;
+  pending_count: number;
+  active_count: number;
+  historical_count: number;
+  cleared_count: number;
+  service_state: TelemetryServiceState;
+  source: TelemetrySource;
+}
+
+export interface DiagnosticEvent {
+  sequence: number;
+  timestamp_microseconds: number;
+  code: string;
+  event_type: DiagnosticEventType;
+  prior_status: DiagnosticStatus | null;
+  new_status: DiagnosticStatus | null;
+}
+
+export interface FreezeFrameSignal {
+  key: SignalKey;
+  value: SignalValue;
+  unit: string;
+  source_ecu: string;
+  arbitration_id: number;
+  arbitration_id_hex: string;
+  timestamp_microseconds: number;
+  telemetry_frame_sequence: number;
+}
+
+export interface DiagnosticFreezeFrame {
+  code: string;
+  capture_timestamp_microseconds: number;
+  telemetry_frame_sequence: number;
+  signals: FreezeFrameSignal[];
+}
+
 export type CanWebSocketEvent =
   | InitialCanSnapshotEvent
   | CanFrameEvent

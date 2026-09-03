@@ -3,6 +3,11 @@ import type {
   CanExplorerFrame,
   CanExplorerStatistics,
   CanMessageStatistics,
+  DiagnosticEvent,
+  DiagnosticFreezeFrame,
+  DiagnosticStatus,
+  DiagnosticSummary,
+  DiagnosticTroubleCode,
   SignalDefinition,
   SignalHistoryResponse,
   SignalResponse,
@@ -18,6 +23,11 @@ import {
   parseCanFrames,
   parseCanMessages,
   parseCanStatistics,
+  parseDiagnosticDtc,
+  parseDiagnosticDtcs,
+  parseDiagnosticEvents,
+  parseDiagnosticFreezeFrame,
+  parseDiagnosticSummary,
   parseCatalog,
   parseSessionDetail,
   parseSessionReplay,
@@ -113,6 +123,41 @@ export async function fetchCanStatistics(): Promise<CanExplorerStatistics> {
 
 export async function fetchCanMessages(): Promise<CanMessageStatistics[]> {
   return parseCanMessages(await getJson("/api/v1/can/messages"));
+}
+
+export async function fetchDiagnosticSummary(): Promise<DiagnosticSummary> {
+  return parseDiagnosticSummary(await getJson("/api/v1/diagnostics"));
+}
+
+export async function fetchDiagnosticDtcs(
+  status?: DiagnosticStatus,
+): Promise<DiagnosticTroubleCode[]> {
+  const suffix = status === undefined ? "" : `?status=${status}`;
+  return parseDiagnosticDtcs(await getJson(`/api/v1/diagnostics/dtcs${suffix}`));
+}
+
+export async function fetchDiagnosticDtc(code: string): Promise<DiagnosticTroubleCode> {
+  return parseDiagnosticDtc(
+    await getJson(`/api/v1/diagnostics/dtcs/${encodeURIComponent(code)}`),
+  );
+}
+
+export async function fetchDiagnosticEvents(limit = 200): Promise<DiagnosticEvent[]> {
+  return parseDiagnosticEvents(await getJson(`/api/v1/diagnostics/events?limit=${limit}`));
+}
+
+export async function fetchDiagnosticFreezeFrame(
+  code: string,
+): Promise<DiagnosticFreezeFrame> {
+  return parseDiagnosticFreezeFrame(
+    await getJson(`/api/v1/diagnostics/dtcs/${encodeURIComponent(code)}/freeze-frame`),
+  );
+}
+
+export async function clearDiagnosticDtc(code: string): Promise<DiagnosticTroubleCode> {
+  return parseDiagnosticDtc(
+    await postJson(`/api/v1/diagnostics/dtcs/${encodeURIComponent(code)}/clear`),
+  );
 }
 
 export async function fetchSessions(): Promise<SessionSummary[]> {

@@ -96,6 +96,8 @@ def test_real_city_recording_round_trip_and_telemetry_replay_equivalence(tmp_pat
             for definition in service.catalog.definitions
         }
         live_can_snapshot = service.can_snapshot()
+        live_diagnostic_snapshot = service.diagnostic_snapshot()
+        live_diagnostic_events = service.diagnostic_events()
         service.stop()
 
         assert process.wait(timeout=10) == 0, process.stderr.read()
@@ -107,6 +109,7 @@ def test_real_city_recording_round_trip_and_telemetry_replay_equivalence(tmp_pat
     reader = SessionReader(recorder.recorder.artifact_path)
     replayed_frames = list(reader.frames())
     replay = replay_session(reader)
+    second_replay = replay_session(reader)
 
     assert replayed_frames == recorder.observed
     assert len(replayed_frames) == reader.manifest.frame_count == 27_305
@@ -114,6 +117,12 @@ def test_real_city_recording_round_trip_and_telemetry_replay_equivalence(tmp_pat
     assert replay.statistics == live_statistics
     assert replay.statistics.total_signal_updates == 93_467
     assert replay.explorer.snapshot() == live_can_snapshot
+    assert replay.diagnostics.snapshot() == live_diagnostic_snapshot
+    assert replay.diagnostics.events() == live_diagnostic_events
+    assert second_replay.diagnostics.snapshot() == replay.diagnostics.snapshot()
+    assert second_replay.diagnostics.events() == replay.diagnostics.events()
+    assert replay.diagnostics.dtcs() == ()
+    assert replay.diagnostics.events() == ()
     assert {
         item.arbitration_id: item.total_frame_count for item in replay.explorer.message_statistics()
     } == {

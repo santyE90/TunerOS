@@ -13,6 +13,10 @@ from tuneros.api.models import (
     CanExplorerStatisticsResponse,
     CanMessageStatisticsResponse,
     CanSourceStateEventResponse,
+    DiagnosticEventResponse,
+    DiagnosticFreezeFrameResponse,
+    DiagnosticSummaryResponse,
+    DiagnosticTroubleCodeResponse,
     ServiceStateEventResponse,
     SessionDetailResponse,
     SessionReplayResponse,
@@ -32,6 +36,10 @@ from tuneros.api.serialization import (
     serialize_can_statistics,
     serialize_can_update,
     serialize_definition,
+    serialize_diagnostic_event,
+    serialize_diagnostic_freeze_frame,
+    serialize_diagnostic_summary,
+    serialize_dtc,
     serialize_initial_can_snapshot,
     serialize_initial_snapshot,
     serialize_sample,
@@ -42,6 +50,11 @@ from tuneros.api.serialization import (
     serialize_source,
     serialize_statistics,
     serialize_update,
+)
+from tuneros.diagnostics import (
+    DiagnosticClearError,
+    DiagnosticStatus,
+    UnknownDiagnosticCodeError,
 )
 from tuneros.session import SessionCatalog, SessionError
 from tuneros.telemetry import (
@@ -63,6 +76,8 @@ DEFAULT_CORS_ORIGINS = ("http://localhost:3000", "http://127.0.0.1:3000")
 DEFAULT_CAN_FRAME_QUERY_LIMIT = 500
 MAX_CAN_FRAME_QUERY_LIMIT = 1_000
 CAN_WEBSOCKET_INITIAL_FRAME_LIMIT = 1_000
+DEFAULT_DIAGNOSTIC_EVENT_QUERY_LIMIT = 200
+MAX_DIAGNOSTIC_EVENT_QUERY_LIMIT = 1_024
 
 
 def create_app(
@@ -207,6 +222,71 @@ def create_app(
             serialize_can_message_statistics(statistics)
             for statistics in telemetry_service.can_message_statistics()
         ]
+
+    @app.get(f"{API_PREFIX}/diagnostics", response_model=DiagnosticSummaryResponse)
+    def get_diagnostic_summary() -> DiagnosticSummaryResponse:
+        return serialize_diagnostic_summary(
+            telemetry_service.diagnostic_snapshot(),
+            telemetry_service.source_status(),
+            telemetry_service.state,
+        )
+
+    @app.get(f"{API_PREFIX}/diagnostics/dtcs", response_model=list[DiagnosticTroubleCodeResponse])
+    def get_diagnostic_dtcs(
+        status: DiagnosticStatus | None = None,
+    ) -> list[DiagnosticTroubleCodeResponse]:
+        return [serialize_dtc(dtc) for dtc in telemetry_service.diagnostic_dtcs(status)]
+
+    @app.get(f"{API_PREFIX}/diagnostics/events", response_model=list[DiagnosticEventResponse])
+    def get_diagnostic_events(
+        limit: Annotated[
+            int, Query(gt=0, le=MAX_DIAGNOSTIC_EVENT_QUERY_LIMIT)
+        ] = DEFAULT_DIAGNOSTIC_EVENT_QUERY_LIMIT,
+    ) -> list[DiagnosticEventResponse]:
+        return [
+            serialize_diagnostic_event(event)
+            for event in telemetry_service.diagnostic_events(limit)
+        ]
+
+    @app.get(
+        f"{API_PREFIX}/diagnostics/dtcs/{{code}}",
+        response_model=DiagnosticTroubleCodeResponse,
+    )
+    def get_diagnostic_dtc(code: str) -> DiagnosticTroubleCodeResponse:
+        try:
+            dtc = telemetry_service.diagnostic_dtc(code)
+        except UnknownDiagnosticCodeError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        if dtc is None:
+            raise HTTPException(status_code=404, detail=f"diagnostic code {code!r} has no DTC")
+        return serialize_dtc(dtc)
+
+    @app.get(
+        f"{API_PREFIX}/diagnostics/dtcs/{{code}}/freeze-frame",
+        response_model=DiagnosticFreezeFrameResponse,
+    )
+    def get_diagnostic_freeze_frame(code: str) -> DiagnosticFreezeFrameResponse:
+        try:
+            freeze_frame = telemetry_service.diagnostic_freeze_frame(code)
+        except UnknownDiagnosticCodeError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        if freeze_frame is None:
+            raise HTTPException(
+                status_code=404, detail=f"diagnostic code {code!r} has no freeze frame"
+            )
+        return serialize_diagnostic_freeze_frame(freeze_frame)
+
+    @app.post(
+        f"{API_PREFIX}/diagnostics/dtcs/{{code}}/clear",
+        response_model=DiagnosticTroubleCodeResponse,
+    )
+    def clear_diagnostic_dtc(code: str) -> DiagnosticTroubleCodeResponse:
+        try:
+            return serialize_dtc(telemetry_service.clear_diagnostic(code))
+        except UnknownDiagnosticCodeError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except DiagnosticClearError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
 
     @app.get(f"{API_PREFIX}/sessions", response_model=list[SessionSummaryResponse])
     def get_sessions() -> list[SessionSummaryResponse]:

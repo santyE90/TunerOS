@@ -122,3 +122,34 @@ def test_cpp_gateway_reaches_live_service_rest_and_websocket() -> None:
         if process.poll() is None:
             process.kill()
             process.wait(timeout=5)
+
+
+@pytest.mark.parametrize("scenario", ["idle", "cold-start", "warmup", "city"])
+def test_normal_cpp_scenarios_produce_no_diagnostic_false_positives(scenario: str) -> None:
+    process = subprocess.Popen(
+        [str(_gateway_executable()), "--scenario", scenario, "--port", "0"],
+        cwd=_REPOSITORY_ROOT,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    assert process.stdout is not None
+    assert process.stderr is not None
+    readiness: queue.Queue[str] = queue.Queue()
+    threading.Thread(target=_readline, args=(process.stdout, readiness), daemon=True).start()
+
+    try:
+        port = int(readiness.get(timeout=10).strip().removeprefix("LISTENING "))
+        service = TelemetryService(TelemetryServiceConfig(gateway_port=port))
+        service.start()
+        assert service.wait_for_state(TelemetryServiceState.COMPLETED, timeout=15)
+        assert process.wait(timeout=10) == 0, process.stderr.read()
+        assert service.diagnostic_dtcs() == ()
+        assert service.diagnostic_events() == ()
+        assert service.diagnostic_snapshot().active_count == 0
+        assert service.diagnostic_snapshot().historical_count == 0
+        service.stop()
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait(timeout=5)

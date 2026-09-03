@@ -1,10 +1,11 @@
-# Telemetry and session API
+# Telemetry, session, CAN, and diagnostics API
 
 ## Scope and startup
 
 Phase 4B exposes the in-memory decoded telemetry domain to local REST and WebSocket consumers.
 Phase 5B adds filesystem session catalog and replay coordination while preserving those telemetry
-contracts. The API does not control the simulator, decode CAN itself, run diagnostics, use
+contracts. Phase 6A adds raw CAN inspection, and Phase 7A exposes deterministic diagnostics derived
+from coherent telemetry snapshots. The API does not control the simulator, decode CAN itself, use
 PostgreSQL, or authenticate users.
 The API binds to `127.0.0.1:8000` by default; the raw gateway remains `127.0.0.1:45800`.
 
@@ -31,9 +32,10 @@ Useful URLs:
 - Snapshot: `http://127.0.0.1:8000/api/v1/telemetry`
 - Source: `http://127.0.0.1:8000/api/v1/source`
 - Sessions: `http://127.0.0.1:8000/api/v1/sessions`
+- Diagnostics: `http://127.0.0.1:8000/api/v1/diagnostics`
 
-CLI options configure API host/port, gateway host/port, history capacity, and subscriber queue
-capacity. `--record-session` enables raw-first recording; `--session-name` and `--scenario` add
+CLI options configure API host/port, gateway host/port, telemetry and diagnostic history capacities,
+and subscriber queue capacity. `--record-session` enables raw-first recording; `--session-name` and `--scenario` add
 optional metadata. `--replay-session UUID` is mutually exclusive with recording and starts from the
 configured session root without connecting to C++. `--session-root` or `TUNEROS_SESSION_ROOT`
 selects that root. The C++ simulation and replay remain unpaced and may reach `COMPLETED` almost
@@ -82,6 +84,12 @@ transmitter names.
 | `GET /api/v1/messages/{message_name}/signals/{signal_name}` | Unambiguous canonical lookup |
 | `GET /api/v1/signals/{signal_name}/history` | Unique-name bounded history |
 | `GET /api/v1/messages/{message_name}/signals/{signal_name}/history` | Canonical bounded history |
+| `GET /api/v1/diagnostics` | Diagnostic counts, observation timestamp, event totals, and source/service context |
+| `GET /api/v1/diagnostics/dtcs` | Catalog-ordered observed DTC records, optionally filtered by lifecycle `status` |
+| `GET /api/v1/diagnostics/dtcs/{code}` | One observed DTC record; unknown or never-observed codes return 404 |
+| `GET /api/v1/diagnostics/dtcs/{code}/freeze-frame` | Immutable first-activation evidence; absent evidence returns 404 |
+| `POST /api/v1/diagnostics/dtcs/{code}/clear` | Clear one historical DTC; active or pending records return 409 |
+| `GET /api/v1/diagnostics/events` | Bounded recent diagnostic transition tail in oldest-to-newest order |
 
 History accepts optional positive `limit`. It may not exceed the configured engine capacity and
 returns the most recent N retained samples in oldest-to-newest order. Invalid query values return
@@ -120,6 +128,14 @@ Example signal response:
 Boolean values remain JSON booleans and numerical values remain JSON numbers. CAN IDs are integers
 with an additional consistently formatted hexadecimal field. Statistics use a list of message-count
 objects rather than relying on JSON conversion of integer dictionary keys.
+
+Diagnostic values use the same canonical engineering units and integer simulation timestamps as
+telemetry. DTC status is one of `pending`, `active`, `historical`, or `cleared`; severity is `info`,
+`warning`, or `critical`. `events?limit=N` defaults to 200 and is bounded to 1,024. A freeze frame
+contains every signal observed in the coherent telemetry snapshot that first confirmed the DTC,
+ordered by canonical message/signal key. Clearing is diagnostic-memory management only: it does not
+modify the simulator, CAN, telemetry, or recorded session. Diagnostics have no WebSocket in Phase
+7A; the existing telemetry and raw sockets are unchanged.
 
 Raw frame responses keep bytes unambiguous as both an integer array and uppercase spaced hex, with
 no padding beyond DLC. Known IDs include DBC-derived name, transmitter, expected period, and decoded
@@ -207,7 +223,9 @@ Development CORS allows only `http://localhost:3000` and `http://127.0.0.1:3000`
 loopback-only, but Phase 4B provides no authentication, authorization, or TLS and must not be treated
 as a production deployment configuration.
 
-Diagnostics, tuning, CAN transmission, simulator control, authentication, session database
-indexing, advanced playback controls, and physical CAN remain deferred. Phase 5B keeps raw payloads
-inside the session layer and exposes metadata rather than filesystem paths. See
+Fault injection, authentic OBD/UDS diagnostics, tuning, CAN transmission, simulator control,
+authentication, session database indexing, advanced playback controls, and physical CAN remain
+deferred. Diagnostic state is in-memory and regenerated during replay; it is not added to raw
+session artifacts. Phase 5B keeps raw payloads inside the session layer and exposes metadata rather
+than filesystem paths. See
 [Frontend dashboard](FRONTEND.md) and [Session recording and replay](SESSIONS.md).

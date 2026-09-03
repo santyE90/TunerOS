@@ -22,6 +22,17 @@ from tuneros.can import (
     RawCanGatewayClient,
     TunerOsDbcDecoder,
 )
+from tuneros.diagnostics import (
+    DEFAULT_DIAGNOSTIC_EVENT_CAPACITY,
+    DiagnosticCatalog,
+    DiagnosticEngine,
+    DiagnosticEvent,
+    DiagnosticFreezeFrame,
+    DiagnosticSnapshot,
+    DiagnosticStatus,
+    DiagnosticTroubleCode,
+    create_default_diagnostic_catalog,
+)
 from tuneros.telemetry.catalog import SignalCatalog
 from tuneros.telemetry.engine import DEFAULT_HISTORY_CAPACITY, TelemetryEngine
 from tuneros.telemetry.models import (
@@ -64,6 +75,7 @@ class TelemetryServiceConfig:
     can_explorer_capacity: int = DEFAULT_CAN_EXPLORER_CAPACITY
     can_subscriber_queue_capacity: int = DEFAULT_CAN_SUBSCRIBER_QUEUE_CAPACITY
     can_replay_subscriber_queue_capacity: int = DEFAULT_CAN_REPLAY_SUBSCRIBER_QUEUE_CAPACITY
+    diagnostic_event_capacity: int = DEFAULT_DIAGNOSTIC_EVENT_CAPACITY
     gateway_connect_timeout_seconds: float = DEFAULT_GATEWAY_CONNECT_TIMEOUT_SECONDS
 
     def __post_init__(self) -> None:
@@ -84,6 +96,7 @@ class TelemetryServiceConfig:
         self._validate_positive_integer(
             "can_replay_subscriber_queue_capacity", self.can_replay_subscriber_queue_capacity
         )
+        self._validate_positive_integer("diagnostic_event_capacity", self.diagnostic_event_capacity)
         if (
             isinstance(self.gateway_connect_timeout_seconds, bool)
             or not isinstance(self.gateway_connect_timeout_seconds, (int, float))
@@ -311,6 +324,7 @@ class TelemetryService:
         gateway_connector: GatewayConnector = RawCanGatewayClient.connect,
         recorder: RawFrameRecorder | None = None,
         explorer: CanExplorer | None = None,
+        diagnostic_engine: DiagnosticEngine | None = None,
     ) -> None:
         self._config = config or TelemetryServiceConfig()
         self._decoder = decoder or TunerOsDbcDecoder()
@@ -324,6 +338,23 @@ class TelemetryService:
         self._explorer = explorer or CanExplorer(self._decoder, self._config.can_explorer_capacity)
         if explorer is not None and explorer.capacity != self._config.can_explorer_capacity:
             raise ValueError("injected CAN explorer capacity must match service configuration")
+        if diagnostic_engine is None:
+            try:
+                diagnostic_catalog = create_default_diagnostic_catalog(self._engine.catalog)
+            except TelemetrySchemaError:
+                if engine is None:
+                    raise
+                diagnostic_catalog = DiagnosticCatalog((), self._engine.catalog)
+            self._diagnostics = DiagnosticEngine(
+                diagnostic_catalog, self._config.diagnostic_event_capacity
+            )
+        else:
+            self._diagnostics = diagnostic_engine
+        if (
+            diagnostic_engine is not None
+            and diagnostic_engine.event_capacity != self._config.diagnostic_event_capacity
+        ):
+            raise ValueError("injected diagnostic event capacity must match service configuration")
         self._broadcaster = TelemetryBroadcaster(self._config.subscriber_queue_capacity)
         self._can_broadcaster = TelemetryBroadcaster(self._config.can_subscriber_queue_capacity)
         self._lock = threading.RLock()
@@ -377,6 +408,7 @@ class TelemetryService:
             self._source_session_id = None
             self._source_session_name = None
             self._explorer.reset()
+            self._diagnostics.reset()
             self._stop_requested.clear()
             self._transition_locked(TelemetryServiceState.CONNECTING)
             self._worker = threading.Thread(
@@ -411,6 +443,7 @@ class TelemetryService:
             self._stop_requested.clear()
             self._engine.reset()
             self._explorer.reset()
+            self._diagnostics.reset()
             self._last_error = None
             self._source_mode = TelemetrySourceMode.REPLAY
             self._source_session_id = session_id
@@ -473,6 +506,7 @@ class TelemetryService:
                 samples=samples,
                 freshness=tuple(freshness),
             )
+            self._diagnostics.ingest(self._engine.snapshot())
             self._broadcaster.publish(update)
             return update
 
@@ -545,6 +579,32 @@ class TelemetryService:
     def can_snapshot(self, *, frame_limit: int | None = None) -> CanExplorerSnapshot:
         with self._lock:
             return self._explorer.snapshot(frame_limit=frame_limit)
+
+    def diagnostic_snapshot(self) -> DiagnosticSnapshot:
+        with self._lock:
+            return self._diagnostics.snapshot()
+
+    def diagnostic_dtcs(
+        self, status: DiagnosticStatus | None = None
+    ) -> tuple[DiagnosticTroubleCode, ...]:
+        with self._lock:
+            return self._diagnostics.dtcs(status)
+
+    def diagnostic_dtc(self, code: str) -> DiagnosticTroubleCode | None:
+        with self._lock:
+            return self._diagnostics.dtc(code)
+
+    def diagnostic_events(self, limit: int | None = None) -> tuple[DiagnosticEvent, ...]:
+        with self._lock:
+            return self._diagnostics.events(limit)
+
+    def diagnostic_freeze_frame(self, code: str) -> DiagnosticFreezeFrame | None:
+        with self._lock:
+            return self._diagnostics.freeze_frame(code)
+
+    def clear_diagnostic(self, code: str) -> DiagnosticTroubleCode:
+        with self._lock:
+            return self._diagnostics.clear(code)
 
     def subscribe(
         self, loop: asyncio.AbstractEventLoop

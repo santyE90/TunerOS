@@ -3,6 +3,10 @@ import type {
   CanExplorerStatistics,
   CanMessageStatistics,
   CanWebSocketEvent,
+  DiagnosticEvent,
+  DiagnosticFreezeFrame,
+  DiagnosticSummary,
+  DiagnosticTroubleCode,
   InitialSnapshotEvent,
   MessageFrameCount,
   ServiceStateEvent,
@@ -152,6 +156,75 @@ function isCanStatistics(value: unknown): value is CanExplorerStatistics {
     isNullableInteger(value.newest_retained_timestamp_microseconds) &&
     isNullableInteger(value.last_sequence) &&
     isSource(value.source)
+  );
+}
+
+function isDiagnosticStatus(value: unknown): boolean {
+  return ["pending", "active", "historical", "cleared"].includes(String(value));
+}
+
+function isDiagnosticDefinition(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.code === "string" &&
+    typeof value.rule_id === "string" &&
+    typeof value.name === "string" &&
+    typeof value.description === "string" &&
+    ["info", "warning", "critical"].includes(String(value.severity)) &&
+    typeof value.source_system === "string" &&
+    Array.isArray(value.required_signals) &&
+    value.required_signals.every(isSignalKey) &&
+    isInteger(value.confirmation_duration_microseconds) &&
+    isInteger(value.recovery_duration_microseconds) &&
+    typeof value.activation_description === "string" &&
+    typeof value.recovery_description === "string"
+  );
+}
+
+function isDiagnosticTroubleCode(value: unknown): value is DiagnosticTroubleCode {
+  return (
+    isRecord(value) &&
+    isDiagnosticDefinition(value.definition) &&
+    isDiagnosticStatus(value.status) &&
+    isInteger(value.first_detected_timestamp_microseconds) &&
+    isNullableInteger(value.confirmed_timestamp_microseconds) &&
+    isInteger(value.last_seen_timestamp_microseconds) &&
+    isNullableInteger(value.resolved_timestamp_microseconds) &&
+    isNullableInteger(value.cleared_timestamp_microseconds) &&
+    isInteger(value.occurrence_count) &&
+    typeof value.freeze_frame_available === "boolean"
+  );
+}
+
+function isDiagnosticEvent(value: unknown): value is DiagnosticEvent {
+  return (
+    isRecord(value) &&
+    isInteger(value.sequence) &&
+    isInteger(value.timestamp_microseconds) &&
+    typeof value.code === "string" &&
+    [
+      "condition_detected",
+      "condition_cleared",
+      "dtc_confirmed",
+      "dtc_recovered",
+      "dtc_cleared",
+    ].includes(String(value.event_type)) &&
+    (value.prior_status === null || isDiagnosticStatus(value.prior_status)) &&
+    (value.new_status === null || isDiagnosticStatus(value.new_status))
+  );
+}
+
+function isFreezeFrameSignal(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    isSignalKey(value.key) &&
+    (typeof value.value === "number" || typeof value.value === "boolean") &&
+    typeof value.unit === "string" &&
+    typeof value.source_ecu === "string" &&
+    isInteger(value.arbitration_id) &&
+    typeof value.arbitration_id_hex === "string" &&
+    isInteger(value.timestamp_microseconds) &&
+    isInteger(value.telemetry_frame_sequence)
   );
 }
 
@@ -317,6 +390,61 @@ export function parseCanWebSocketEvent(value: unknown): CanWebSocketEvent {
     return value as unknown as CanWebSocketEvent;
   }
   throw new Error(`CAN WebSocket sent an invalid ${value.type} event`);
+}
+
+export function parseDiagnosticSummary(value: unknown): DiagnosticSummary {
+  if (
+    !isRecord(value) ||
+    !isNullableInteger(value.observation_timestamp_microseconds) ||
+    !isNullableInteger(value.latest_telemetry_frame_sequence) ||
+    !isInteger(value.retained_event_count) ||
+    !isInteger(value.total_event_count) ||
+    !isNullableInteger(value.latest_event_sequence) ||
+    !isInteger(value.pending_count) ||
+    !isInteger(value.active_count) ||
+    !isInteger(value.historical_count) ||
+    !isInteger(value.cleared_count) ||
+    !isServiceState(value.service_state) ||
+    !isSource(value.source)
+  ) {
+    throw new Error("Backend returned an invalid diagnostic summary");
+  }
+  return value as unknown as DiagnosticSummary;
+}
+
+export function parseDiagnosticDtcs(value: unknown): DiagnosticTroubleCode[] {
+  if (!Array.isArray(value) || !value.every(isDiagnosticTroubleCode)) {
+    throw new Error("Backend returned invalid diagnostic trouble codes");
+  }
+  return value;
+}
+
+export function parseDiagnosticDtc(value: unknown): DiagnosticTroubleCode {
+  if (!isDiagnosticTroubleCode(value)) {
+    throw new Error("Backend returned an invalid diagnostic trouble code");
+  }
+  return value;
+}
+
+export function parseDiagnosticEvents(value: unknown): DiagnosticEvent[] {
+  if (!Array.isArray(value) || !value.every(isDiagnosticEvent)) {
+    throw new Error("Backend returned invalid diagnostic events");
+  }
+  return value;
+}
+
+export function parseDiagnosticFreezeFrame(value: unknown): DiagnosticFreezeFrame {
+  if (
+    !isRecord(value) ||
+    typeof value.code !== "string" ||
+    !isInteger(value.capture_timestamp_microseconds) ||
+    !isInteger(value.telemetry_frame_sequence) ||
+    !Array.isArray(value.signals) ||
+    !value.signals.every(isFreezeFrameSignal)
+  ) {
+    throw new Error("Backend returned an invalid diagnostic freeze frame");
+  }
+  return value as unknown as DiagnosticFreezeFrame;
 }
 
 export function parseSessions(value: unknown): SessionSummary[] {

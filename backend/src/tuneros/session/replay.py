@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 
 from tuneros.can import CanExplorer, TunerOsDbcDecoder, authoritative_dbc_sha256
+from tuneros.diagnostics import DiagnosticEngine, create_default_diagnostic_catalog
 from tuneros.session.reader import SessionReader
 from tuneros.telemetry import DEFAULT_HISTORY_CAPACITY, SignalCatalog, TelemetryEngine
 from tuneros.telemetry.models import TelemetrySnapshot, TelemetryStatistics
@@ -14,6 +15,7 @@ class SessionReplayResult:
     statistics: TelemetryStatistics
     engine: TelemetryEngine
     explorer: CanExplorer
+    diagnostics: DiagnosticEngine
 
 
 def replay_session(
@@ -34,7 +36,11 @@ def replay_session(
     active_explorer = explorer or CanExplorer(active_decoder)
     active_explorer.reset()
     engine = TelemetryEngine(SignalCatalog(active_decoder.database_metadata), history_capacity)
+    diagnostics = DiagnosticEngine(create_default_diagnostic_catalog(engine.catalog))
     for raw_frame in reader.frames():
         active_explorer.ingest(raw_frame)
         engine.ingest(active_decoder.decode(raw_frame))
-    return SessionReplayResult(engine.snapshot(), engine.statistics(), engine, active_explorer)
+        diagnostics.ingest(engine.snapshot())
+    return SessionReplayResult(
+        engine.snapshot(), engine.statistics(), engine, active_explorer, diagnostics
+    )

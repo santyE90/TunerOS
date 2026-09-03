@@ -42,6 +42,20 @@ def _motion(timestamp: int, speed: float = 0.0, gear: int = 0) -> DecodedCanFram
     )
 
 
+def _thermal(timestamp: int, coolant: float = 90.0) -> DecodedCanFrame:
+    return DecodedCanFrame(
+        0x502,
+        "DmeThermalElectrical",
+        timestamp,
+        {
+            "CoolantTemperature": coolant,
+            "OilTemperature": 100.0,
+            "IntakeAirTemperature": 30.0,
+            "BatteryVoltage": 14.2,
+        },
+    )
+
+
 def _wheels(timestamp: int, speed: float = 0.0) -> DecodedCanFrame:
     return DecodedCanFrame(
         0x521,
@@ -67,6 +81,9 @@ def test_empty_status_snapshot_catalog_statistics_and_openapi() -> None:
         can_frames = client.get("/api/v1/can/frames")
         can_statistics = client.get("/api/v1/can/statistics")
         can_messages = client.get("/api/v1/can/messages")
+        diagnostics = client.get("/api/v1/diagnostics")
+        dtcs = client.get("/api/v1/diagnostics/dtcs")
+        diagnostic_events = client.get("/api/v1/diagnostics/events")
 
     assert status.status_code == 200
     assert status.json() == {
@@ -86,6 +103,76 @@ def test_empty_status_snapshot_catalog_statistics_and_openapi() -> None:
     assert can_statistics.json()["total_frame_count"] == 0
     assert can_statistics.json()["source"]["mode"] == "live"
     assert can_messages.json() == []
+    assert diagnostics.json()["observation_timestamp_microseconds"] is None
+    assert diagnostics.json()["active_count"] == 0
+    assert diagnostics.json()["source"]["mode"] == "live"
+    assert dtcs.json() == []
+    assert diagnostic_events.json() == []
+
+
+def test_diagnostic_rest_lifecycle_freeze_frame_filter_limit_and_clear() -> None:
+    service = TelemetryService()
+    service.ingest_decoded(_fast(0))
+    service.ingest_decoded(_thermal(0, 116.0))
+
+    with TestClient(create_app(service, autostart=False)) as client:
+        pending = client.get("/api/v1/diagnostics/dtcs/TUN-DME-001")
+        pending_filter = client.get("/api/v1/diagnostics/dtcs?status=pending")
+        missing_freeze = client.get("/api/v1/diagnostics/dtcs/TUN-DME-001/freeze-frame")
+        unknown = client.get("/api/v1/diagnostics/dtcs/TUN-NOPE-001")
+
+    assert pending.json()["status"] == "pending"
+    assert pending.json()["definition"]["severity"] == "critical"
+    assert pending.json()["definition"]["source_system"] == "DME"
+    assert len(pending_filter.json()) == 1
+    assert missing_freeze.status_code == 404
+    assert unknown.status_code == 404
+
+    for timestamp in range(100_000, 5_000_001, 100_000):
+        service.ingest_decoded(_thermal(timestamp, 116.0))
+
+    with TestClient(create_app(service, autostart=False)) as client:
+        active = client.get("/api/v1/diagnostics/dtcs/TUN-DME-001")
+        freeze = client.get("/api/v1/diagnostics/dtcs/TUN-DME-001/freeze-frame")
+        active_clear = client.post("/api/v1/diagnostics/dtcs/TUN-DME-001/clear")
+        events = client.get("/api/v1/diagnostics/events?limit=1")
+        invalid_limit = client.get("/api/v1/diagnostics/events?limit=0")
+
+    assert active.json()["status"] == "active"
+    assert active.json()["occurrence_count"] == 1
+    assert active_clear.status_code == 409
+    assert freeze.json()["capture_timestamp_microseconds"] == 5_000_000
+    assert freeze.json()["telemetry_frame_sequence"] == 51
+    assert len(freeze.json()["signals"]) == 8
+    assert freeze.json()["signals"][0]["key"] == {
+        "message_name": "DmeFastEngine",
+        "signal_name": "EngineLoad",
+    }
+    assert freeze.json()["signals"][0]["arbitration_id_hex"] == "0x500"
+    assert events.json()[0]["event_type"] == "dtc_confirmed"
+    assert invalid_limit.status_code == 422
+
+    for timestamp in range(5_100_000, 8_100_001, 100_000):
+        service.ingest_decoded(_thermal(timestamp, 90.0))
+
+    with TestClient(create_app(service, autostart=False)) as client:
+        historical = client.get("/api/v1/diagnostics/dtcs?status=historical")
+        cleared = client.post("/api/v1/diagnostics/dtcs/TUN-DME-001/clear")
+        idempotent = client.post("/api/v1/diagnostics/dtcs/TUN-DME-001/clear")
+        summary = client.get("/api/v1/diagnostics")
+        all_events = client.get("/api/v1/diagnostics/events")
+
+    assert historical.json()[0]["status"] == "historical"
+    assert cleared.json()["status"] == "cleared"
+    assert idempotent.json() == cleared.json()
+    assert summary.json()["cleared_count"] == 1
+    assert summary.json()["latest_event_sequence"] == 3
+    assert [item["event_type"] for item in all_events.json()] == [
+        "condition_detected",
+        "dtc_confirmed",
+        "dtc_recovered",
+        "dtc_cleared",
+    ]
 
 
 def test_can_rest_frames_filters_detail_statistics_unknown_and_decode_error() -> None:

@@ -7,6 +7,12 @@ from tuneros.api.models import (
     CanFrameEventResponse,
     CanMessageStatisticsResponse,
     CanSourceStateEventResponse,
+    DiagnosticDefinitionResponse,
+    DiagnosticEventResponse,
+    DiagnosticFreezeFrameResponse,
+    DiagnosticSummaryResponse,
+    DiagnosticTroubleCodeResponse,
+    FreezeFrameSignalResponse,
     InitialCanSnapshotEventResponse,
     InitialSnapshotEventResponse,
     MessageFrameCountResponse,
@@ -26,6 +32,13 @@ from tuneros.can import (
     CanExplorerSnapshot,
     CanExplorerStatistics,
     CanMessageStatistics,
+)
+from tuneros.diagnostics import (
+    DiagnosticDefinition,
+    DiagnosticEvent,
+    DiagnosticFreezeFrame,
+    DiagnosticSnapshot,
+    DiagnosticTroubleCode,
 )
 from tuneros.session import SessionManifest
 from tuneros.telemetry import (
@@ -54,6 +67,98 @@ def serialize_source(source: TelemetrySourceStatus) -> TelemetrySourceResponse:
         session_name=source.session_name,
         recording=source.recording,
         recorded_frame_count=source.recorded_frame_count,
+    )
+
+
+def serialize_diagnostic_definition(
+    definition: DiagnosticDefinition,
+) -> DiagnosticDefinitionResponse:
+    return DiagnosticDefinitionResponse(
+        code=definition.code,
+        rule_id=definition.rule_id,
+        name=definition.name,
+        description=definition.description,
+        severity=definition.severity,
+        source_system=definition.source_system,
+        required_signals=[
+            SignalKeyResponse(message_name=key.message_name, signal_name=key.signal_name)
+            for key in definition.required_signals
+        ],
+        confirmation_duration_microseconds=definition.confirmation_duration_microseconds,
+        recovery_duration_microseconds=definition.recovery_duration_microseconds,
+        activation_description=definition.activation_description,
+        recovery_description=definition.recovery_description,
+    )
+
+
+def serialize_dtc(dtc: DiagnosticTroubleCode) -> DiagnosticTroubleCodeResponse:
+    return DiagnosticTroubleCodeResponse(
+        definition=serialize_diagnostic_definition(dtc.definition),
+        status=dtc.status,
+        first_detected_timestamp_microseconds=dtc.first_detected_timestamp_microseconds,
+        confirmed_timestamp_microseconds=dtc.confirmed_timestamp_microseconds,
+        last_seen_timestamp_microseconds=dtc.last_seen_timestamp_microseconds,
+        resolved_timestamp_microseconds=dtc.resolved_timestamp_microseconds,
+        cleared_timestamp_microseconds=dtc.cleared_timestamp_microseconds,
+        occurrence_count=dtc.occurrence_count,
+        freeze_frame_available=dtc.freeze_frame_available,
+    )
+
+
+def serialize_diagnostic_summary(
+    snapshot: DiagnosticSnapshot,
+    source: TelemetrySourceStatus,
+    state: TelemetryServiceState,
+) -> DiagnosticSummaryResponse:
+    return DiagnosticSummaryResponse(
+        observation_timestamp_microseconds=snapshot.observation_timestamp_microseconds,
+        latest_telemetry_frame_sequence=snapshot.latest_telemetry_frame_sequence,
+        retained_event_count=snapshot.retained_event_count,
+        total_event_count=snapshot.total_event_count,
+        latest_event_sequence=snapshot.latest_event_sequence,
+        pending_count=snapshot.pending_count,
+        active_count=snapshot.active_count,
+        historical_count=snapshot.historical_count,
+        cleared_count=snapshot.cleared_count,
+        service_state=state,
+        source=serialize_source(source),
+    )
+
+
+def serialize_diagnostic_event(event: DiagnosticEvent) -> DiagnosticEventResponse:
+    return DiagnosticEventResponse(
+        sequence=event.sequence,
+        timestamp_microseconds=event.timestamp_microseconds,
+        code=event.code,
+        event_type=event.event_type,
+        prior_status=event.prior_status,
+        new_status=event.new_status,
+    )
+
+
+def serialize_diagnostic_freeze_frame(
+    freeze_frame: DiagnosticFreezeFrame,
+) -> DiagnosticFreezeFrameResponse:
+    return DiagnosticFreezeFrameResponse(
+        code=freeze_frame.code,
+        capture_timestamp_microseconds=freeze_frame.capture_timestamp_microseconds,
+        telemetry_frame_sequence=freeze_frame.telemetry_frame_sequence,
+        signals=[
+            FreezeFrameSignalResponse(
+                key=SignalKeyResponse(
+                    message_name=signal.key.message_name,
+                    signal_name=signal.key.signal_name,
+                ),
+                value=signal.value,
+                unit=signal.unit,
+                source_ecu=signal.source_ecu,
+                arbitration_id=signal.arbitration_id,
+                arbitration_id_hex=format_arbitration_id(signal.arbitration_id),
+                timestamp_microseconds=signal.timestamp_microseconds,
+                telemetry_frame_sequence=signal.telemetry_frame_sequence,
+            )
+            for signal in freeze_frame.signals
+        ],
     )
 
 

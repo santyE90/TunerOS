@@ -77,5 +77,12 @@ a dated superseding entry.
 | Preserve raw observations when DBC decode fails | The explorer records a decode-error status and known metadata before the stricter telemetry path handles its own failure policy. |
 | Make CAN Explorer Freeze View presentation-only | The page continues bounded event consumption while displayed rows remain stable; simulator, ingestion, recording, replay, and telemetry are never paused. |
 | Keep the Raw CAN Explorer read-only and source-neutral | One synchronous model handles live and replay frames without sockets, transmit controls, DBC editing, diagnostics, or source ownership. |
+| Derive diagnostics only from coherent decoded telemetry | Rules reuse canonical values, freshness, timestamps, identity, and provenance without reading vehicle state or parsing raw bytes. |
+| Use deterministic simulation-time rule persistence | Confirmation and recovery depend on integer simulation timestamps; wall time and update throughput cannot change DTC results. |
+| Keep derived diagnostics out of raw sessions | Replay regenerates DTCs, events, and freeze frames through DBC and telemetry, preserving raw CAN as the canonical artifact. |
+| Capture one primary freeze frame at first activation | All currently observed samples provide immutable investigation context; recurrence increments occurrences without replacing evidence. |
+| Reject clearing active or pending DTCs | Clear is diagnostic-memory management for historical records and cannot hide a present condition or modify simulation. |
+| Keep normal scenarios diagnostically clean | Conservative synthetic thresholds validate the domain without pretending normal simulation is faulty or claiming BMW fidelity. |
+| Keep Phase 7A diagnostics synthetic and REST-only | `TUN-*` codes avoid OEM claims; small derived state does not justify changing existing telemetry/raw WebSockets. |
 | Avoid unnecessary distributed or units infrastructure | Message brokers, cloud services, and a dimensional-analysis library add no Phase 0 engineering value. |
 | Defer persistence frameworks and schemas | ORMs, database migrations, brokers, and unrelated application infrastructure should follow concrete requirements. |

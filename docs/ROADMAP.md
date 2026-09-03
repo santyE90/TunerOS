@@ -19,9 +19,9 @@ Status notation: **complete** is validated foundation; **planned** is not implem
 | 5A | First Live Engineering Dashboard | **Complete** |
 | 5B | Raw CAN Session Recording & Deterministic Replay | **Complete** |
 | 6A | Raw CAN Explorer | **Complete** |
-| 7 | Drive Sessions & Replay | Planned |
-| 8 | Diagnostics & DTCs | Planned |
-| 9 | Fault Injection | Planned |
+| 7A | Diagnostics & DTC Foundation | **Complete** |
+| 7B | Fault Injection & Diagnostic Validation | Planned |
+| 9 | Expanded Fault Library & Effects | Planned |
 | 10 | Engine Model Expansion | Planned |
 | 11 | Calibration & Tuning | Planned |
 | 12 | Dyno Mode | Planned |
@@ -91,11 +91,18 @@ and browser buffers, DBC annotations with unknown/error preservation, simulation
 dedicated raw REST/WebSocket contracts, and a read-only `/can` engineering workspace with filters,
 selected-frame detail, and presentation-only Freeze View.
 
-The recommended next step is Phase 7A, Diagnostics & DTC Foundation. The platform now has stable
-simulation, multi-ECU raw traffic, DBC decode, telemetry, durable replay, and direct raw inspection;
-diagnostic state and DTC lifecycle contracts can therefore be introduced without inventing another
-observation shortcut. Session inspection enhancements may follow separately.
+Phase 7A adds a deterministic diagnostic catalog and engine after coherent telemetry aggregation,
+five conservative synthetic `TUN-*` rules, simulation-time confirmation/recovery and hysteresis,
+pending/active/historical/cleared lifecycle state, bounded ordered events, immutable first-activation
+freeze frames, explicit historical clear, replay regeneration, narrow REST resources, and the
+`/diagnostics` workspace. Normal implemented scenarios remain fault-free. Diagnostic state is not
+persisted in canonical raw sessions, and no OEM diagnostic protocol or fault source is implied.
 
-Further ECU behavior, physical CAN, diagnostics, calibration behavior, and frontend product work
+The recommended next step is Phase 7B, Fault Injection & Diagnostic Validation. It should introduce
+small, explicit simulator-side fault controls and prove the complete vehicle behavior -> CAN -> DBC
+-> telemetry -> DTC -> freeze frame -> replay path. It must preserve the Phase 7A observation
+boundary and keep every injected behavior synthetic and auditable.
+
+Further ECU behavior, physical CAN, authentic vehicle diagnostics, calibration behavior, and frontend product work
 remain later phases. A later phase begins only after its required contracts and authenticity
 assumptions are documented and the preceding foundation remains testable.

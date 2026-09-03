@@ -148,3 +148,8 @@ around this core without changing its decoded-frame ingestion contract. See
 Phase 6A also leaves this contract unchanged. `CanExplorer` observes each source `RawCanFrame`
 before decoder/engine ingestion and uses a separate REST/WebSocket representation; raw bytes never
 enter `TelemetryEngine` or `SignalSample`. See [Raw CAN Explorer](CAN_EXPLORER.md).
+
+Phase 7A consumes the coherent snapshot only after a complete `DecodedCanFrame` has been ingested.
+`DiagnosticEngine` reuses canonical `SignalKey`, engineering values, simulation timestamps,
+freshness, and provenance; it does not alter telemetry latest/history/statistics or accept raw CAN.
+See [Diagnostics](DIAGNOSTICS.md).

@@ -5,13 +5,15 @@
 Phase 5A establishes the observation-only Next.js 16, React 19, and TypeScript engineering
 workstation. Phase 5B adds a Sessions view and replay source awareness. Overview presents selected
 live or replayed engineering signals and trends; Telemetry inspects every decoded signal returned by
-the backend catalog. Phase 6A adds a read-only Raw CAN Explorer at `/can`.
+the backend catalog. Phase 6A adds a read-only Raw CAN Explorer at `/can`. Phase 7A adds a
+REST-backed Diagnostics workspace at `/diagnostics`.
 
 The browser consumes only FastAPI REST and WebSocket contracts:
 
 ```text
 live gateway or raw session -> RawCanFrame -> DBC decode -> TelemetryService
-                              -> FastAPI -> shared provider -> Next.js views
+                              -> coherent telemetry -> DiagnosticEngine
+                              -> FastAPI -> Next.js views
 ```
 
 It does not read `VehicleState`, decode CAN, duplicate scaling, invent values, persist runs, or
@@ -121,6 +123,22 @@ Unexpected socket closure retries after bounded delays of 0.5, 1, 2, 4, then 5 s
 `completed` or `failed` service event stops reconnect attempts. A new initial snapshot cleanly
 re-establishes state and sequence.
 
+## Diagnostics workspace
+
+`/diagnostics` polls the bounded diagnostic REST contracts once per second while mounted; it does
+not add a second high-rate socket or place diagnostics in `TelemetryProvider`. The summary identifies
+live/replay source and backend lifecycle, reports authoritative simulation time, and displays counts
+for every DTC lifecycle state. A status filter controls the deterministic DTC table, whose columns
+include code, name, system, severity, status, first-detected/last-seen time, and occurrence count.
+
+Selecting a DTC loads its rule metadata and immutable first-activation freeze frame. The detail view
+shows confirmation/recovery durations, thresholds, timestamps, occurrence semantics, and the full
+catalog-key-ordered signal snapshot with units, source ECU, CAN ID, frame sequence, and
+sample timestamp. The event timeline displays retained transition events in sequence order. Clear is
+available only for historical records; active and pending records remain visibly non-clearable. An
+empty healthy run explicitly displays `No diagnostic trouble codes`. Presentation never derives a
+health score, parses CAN, or reevaluates diagnostic rules.
+
 ## Chart state and presentation
 
 Latest telemetry consumes every accepted event. Numeric chart buffers are deliberately separate,
@@ -160,8 +178,9 @@ the signal table scrolls rather than truncating engineering columns.
 
 ## Intentionally deferred
 
-Diagnostics, calibration, and system tools remain labeled future navigation items. Sessions are
-filesystem-backed metadata and full unpaced replay only. CAN Explorer is read-only: there is no CAN
-transmission/editing, DBC editor, DTC interpretation, warning lamps, tune maps, scenario controls,
-authentication, PostgreSQL session indexing, seek/scrub/playback speed, browser-side recording, or
-physical CAN functionality.
+Calibration and system tools remain labeled future navigation items. Sessions are filesystem-backed
+metadata and full unpaced replay only. CAN Explorer is read-only, and Diagnostics is an observation
+and historical-memory surface only: there is no fault injection, CAN transmission/editing, DBC
+editor, authentic BMW/OBD/UDS communication, warning lamps, tune maps, scenario controls,
+authentication, PostgreSQL session or DTC indexing, seek/scrub/playback speed, browser-side
+recording, or physical CAN functionality.

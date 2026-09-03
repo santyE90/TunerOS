@@ -73,6 +73,20 @@ def _motion(timestamp: int, speed: float = 0.0) -> DecodedCanFrame:
     )
 
 
+def _thermal(timestamp: int, coolant: float = 90.0) -> DecodedCanFrame:
+    return DecodedCanFrame(
+        0x502,
+        "DmeThermalElectrical",
+        timestamp,
+        {
+            "CoolantTemperature": coolant,
+            "OilTemperature": 100.0,
+            "IntakeAirTemperature": 30.0,
+            "BatteryVoltage": 14.2,
+        },
+    )
+
+
 @pytest.mark.parametrize(
     "kwargs,error",
     [
@@ -86,6 +100,7 @@ def _motion(timestamp: int, speed: float = 0.0) -> DecodedCanFrame:
         ({"can_explorer_capacity": 0}, ValueError),
         ({"can_subscriber_queue_capacity": 0}, ValueError),
         ({"can_replay_subscriber_queue_capacity": 0}, ValueError),
+        ({"diagnostic_event_capacity": 0}, ValueError),
         ({"gateway_connect_timeout_seconds": 0}, ValueError),
         ({"gateway_connect_timeout_seconds": float("inf")}, ValueError),
     ],
@@ -197,6 +212,8 @@ def test_replay_resets_engine_waits_for_subscriber_and_preserves_source() -> Non
     async def exercise() -> None:
         service = TelemetryService()
         service.ingest_decoded(_fast(90_000, 900.0))
+        service.ingest_decoded(_thermal(90_000, 116.0))
+        assert len(service.diagnostic_dtcs()) == 1
         raw = RawCanFrame(0x500, bytes.fromhex("b80b0f2e01"), 0)
         service.start_replay(
             lambda: iter((raw,)),
@@ -205,6 +222,8 @@ def test_replay_resets_engine_waits_for_subscriber_and_preserves_source() -> Non
             wait_for_subscriber=True,
         )
         assert service.statistics().total_frames == 0
+        assert service.diagnostic_dtcs() == ()
+        assert service.diagnostic_events() == ()
         assert service.state is TelemetryServiceState.RUNNING
 
         subscription, initial, _ = service.subscribe(asyncio.get_running_loop())

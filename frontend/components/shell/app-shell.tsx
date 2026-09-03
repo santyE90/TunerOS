@@ -11,7 +11,7 @@ const navigation = [
   { label: "Telemetry", href: "/telemetry", enabled: true, marker: "TM" },
   { label: "Sessions", href: "/sessions", enabled: true, marker: "SS" },
   { label: "CAN Explorer", href: "/can", enabled: true, marker: "CN" },
-  { label: "Diagnostics", enabled: false, marker: "DX" },
+  { label: "Diagnostics", href: "/diagnostics", enabled: true, marker: "DX" },
   { label: "Calibration", enabled: false, marker: "CL" },
   { label: "System", enabled: false, marker: "SY" },
 ] as const;
@@ -23,6 +23,8 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
       ? "Signal telemetry"
       : pathname === "/can"
         ? "Raw CAN explorer"
+        : pathname === "/diagnostics"
+          ? "Diagnostics"
       : pathname === "/sessions"
         ? "Recorded sessions"
         : "Engineering overview";

@@ -13,10 +13,11 @@ VehicleProfile + InitialConditions + Scenario + Environment + SimulationClock
                               +-> bounded Raw CAN Explorer
                               +-> DBC decoder
                          -> telemetry core
+                         -> deterministic diagnostic engine
                          -> telemetry service
                          -> REST / WebSocket
                          -> Next.js engineering dashboard
-                         -> future persistence / diagnostics
+                         -> future persistence
 ```
 
 Simulation owns physical/logical state evolution. ECUs observe only relevant vehicle state, own
@@ -46,8 +47,8 @@ access, not a production telemetry path.
   application-level Classic CAN primitives, and simulated ECU publication.
 - **Python 3.12+:** synchronous live raw-CAN input, portable raw session recording/replay, bounded
   raw inspection, authoritative DBC decoding, immutable CAN metadata, deterministic telemetry
-  aggregation, and a FastAPI REST/WebSocket application boundary. Python does not define or access
-  C++ `VehicleState`.
+  aggregation, telemetry-derived diagnostic rules, and a FastAPI REST/WebSocket application
+  boundary. Python does not define or access C++ `VehicleState`.
 - **TypeScript/Next.js:** observation-only operator visualization. Phase 5A owns network contract
   validation, ordered client state, presentation history, and engineering views; Phase 5B adds
   session metadata/replay controls through the same provider. It does not decode CAN or access
@@ -200,3 +201,16 @@ stream.
 Phase 6A mounts a dedicated raw provider only on `/can`. Its bounded frame state and Freeze View are
 disposable presentation concerns; neither changes source ingestion, recording, replay, simulator
 state, or global decoded telemetry.
+
+## Diagnostic derived-state boundary
+
+Phase 7A evaluates a coherent `TelemetrySnapshot` after each complete decoded frame:
+
+```text
+LIVE/REPLAY RawCanFrame -> DBC -> TelemetryEngine -> DiagnosticEngine -> diagnostic REST -> /diagnostics
+```
+
+Diagnostics reference canonical signal keys and freshness. They do not parse raw bytes, duplicate
+DBC scaling/history, access `VehicleState`, or inspect scenario identity. DTC records, bounded
+events, and freeze frames are derived in memory and are regenerated—not persisted—during raw session
+replay. See [Diagnostics](DIAGNOSTICS.md).

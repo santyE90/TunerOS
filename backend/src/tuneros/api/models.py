@@ -5,6 +5,11 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 from tuneros.can import SignalValue
+from tuneros.diagnostics import (
+    DiagnosticEventType,
+    DiagnosticSeverity,
+    DiagnosticStatus,
+)
 from tuneros.session import SessionStatus
 from tuneros.telemetry import SignalFreshness, TelemetryServiceState, TelemetrySourceMode
 
@@ -148,6 +153,73 @@ class CanSourceStateEventResponse(ApiModel):
     state: TelemetryServiceState
     error: str | None
     source: TelemetrySourceResponse
+
+
+class DiagnosticDefinitionResponse(ApiModel):
+    code: str
+    rule_id: str
+    name: str
+    description: str
+    severity: DiagnosticSeverity
+    source_system: str
+    required_signals: list[SignalKeyResponse]
+    confirmation_duration_microseconds: int
+    recovery_duration_microseconds: int
+    activation_description: str
+    recovery_description: str
+
+
+class DiagnosticTroubleCodeResponse(ApiModel):
+    definition: DiagnosticDefinitionResponse
+    status: DiagnosticStatus
+    first_detected_timestamp_microseconds: int
+    confirmed_timestamp_microseconds: int | None
+    last_seen_timestamp_microseconds: int
+    resolved_timestamp_microseconds: int | None
+    cleared_timestamp_microseconds: int | None
+    occurrence_count: int
+    freeze_frame_available: bool
+
+
+class DiagnosticSummaryResponse(ApiModel):
+    observation_timestamp_microseconds: int | None
+    latest_telemetry_frame_sequence: int | None
+    retained_event_count: int
+    total_event_count: int
+    latest_event_sequence: int | None
+    pending_count: int
+    active_count: int
+    historical_count: int
+    cleared_count: int
+    service_state: TelemetryServiceState
+    source: TelemetrySourceResponse
+
+
+class DiagnosticEventResponse(ApiModel):
+    sequence: int
+    timestamp_microseconds: int
+    code: str
+    event_type: DiagnosticEventType
+    prior_status: DiagnosticStatus | None
+    new_status: DiagnosticStatus | None
+
+
+class FreezeFrameSignalResponse(ApiModel):
+    key: SignalKeyResponse
+    value: SignalValue
+    unit: str
+    source_ecu: str
+    arbitration_id: int
+    arbitration_id_hex: str
+    timestamp_microseconds: int
+    telemetry_frame_sequence: int
+
+
+class DiagnosticFreezeFrameResponse(ApiModel):
+    code: str
+    capture_timestamp_microseconds: int
+    telemetry_frame_sequence: int
+    signals: list[FreezeFrameSignalResponse]
 
 
 class SessionSummaryResponse(ApiModel):

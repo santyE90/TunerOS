@@ -7,7 +7,7 @@ and a browser interface. The first reference vehicle is a 2010 BMW E90 335i with
 engine.
 
 > **Current status:** Phase 0, Phases 1A–1C, Phases 2A–2C, Phase 3A, Phases 4A–4B,
-> Phases 5A–5B, and Phase 6A are complete. C++ provides
+> Phases 5A–5B, Phase 6A, and Phase 7A are complete. C++ provides
 > deterministic vehicle simulation, independent simulated DME and DSC publication, globally ordered
 > synthetic Classic CAN, and in-memory transport. A versioned binary TCP loopback gateway carries
 > the combined raw bus live into
@@ -20,19 +20,23 @@ engine.
 > same DBC, telemetry engine, API, and dashboard. The Sessions page lists and starts those replays.
 > A read-only Raw CAN Explorer observes the same pre-decode live or replay frames with a bounded
 > buffer, DBC annotations, simulation-time rates, filters, and a dedicated raw WebSocket.
+> A deterministic Python diagnostic engine evaluates coherent decoded telemetry, maintains five
+> synthetic `TUN-*` DTC lifecycles with bounded events and immutable freeze frames, and exposes a
+> REST-only Diagnostics workspace. Replay regenerates the same diagnostic state from raw frames.
 > These definitions are not authentic BMW traffic. Database indexing, advanced playback controls,
-> CAN transmission, diagnostics, tuning, physical CAN, authentication, and simulator controls are
-> not implemented.
+> CAN transmission, fault injection, authentic OBD/UDS diagnostics, tuning, physical CAN,
+> authentication, and simulator controls are not implemented.
 
 ## Architecture at a glance
 
-The planned data path is:
+The current data path is:
 
 ```text
 live gateway or raw session -> RawCanFrame
                                   +-> SessionRecorder
                                   +-> CanExplorer -> raw REST/WebSocket -> CAN page
                                   +-> DBC -> TelemetryEngine -> telemetry REST/WebSocket -> dashboard
+                                                           +-> DiagnosticEngine -> REST -> Diagnostics page
 ```
 
 CAN is the required source-of-truth boundary for future frontend telemetry; the simulator will not
@@ -44,7 +48,7 @@ persistence boundary.
 ## Repository layout
 
 ```text
-backend/       Python gateway, raw sessions, DBC decoder, telemetry core, and local API
+backend/       Python gateway, raw sessions, DBC decoder, telemetry/diagnostic cores, and local API
 can/           C++ Classic CAN, simulated DME/DSC publication, shared bus, and loopback gateway
 frontend/      Next.js live engineering dashboard and telemetry client
 shared/        Future language-neutral application contracts
@@ -130,7 +134,8 @@ Use either `npm install` for dependency setup/update or `npm ci` for a clean loc
 `frontend/.env.example` to `frontend/.env.local` if the API is not on the documented local defaults.
 The development server is available at `http://localhost:3000` by default. Overview and Telemetry
 use one shared decoded WebSocket. `/can` mounts a separate page-scoped raw WebSocket and bounded CAN
-inspection state. No page uses mock telemetry.
+inspection state. `/diagnostics` polls the small derived diagnostic REST surface. No page uses mock
+telemetry or diagnostic data.
 
 ## Live telemetry API
 
@@ -183,6 +188,14 @@ raw frames, exact DLC/payload bytes, authoritative DBC annotations and decoded e
 per-ID expected/observed rates, filters, and presentation-only Freeze View. The backend retains
 4,096 frames; the browser retains 1,000 and renders at most 500. Unknown IDs and decode errors remain
 visible as raw evidence. See [Raw CAN Explorer](docs/CAN_EXPLORER.md).
+
+## Diagnostics
+
+Open `http://localhost:3000/diagnostics` during a live or replay source. The page displays DTC
+lifecycle counts, status-filtered records, selected rule detail, immutable first-activation freeze
+frames, and the bounded transition timeline. Only historical DTCs can be cleared. Phase 7A defines
+five conservative synthetic TunerOS rules; it does not claim BMW DTC fidelity, inject faults, send
+diagnostic CAN traffic, or persist DTC records. See [Diagnostics](docs/DIAGNOSTICS.md).
 
 ## PostgreSQL
 

@@ -22,6 +22,10 @@ authority. Live gateway and session replay frames use the same explorer model. D
 read-only metadata and engineering values; unknown IDs and decode failures remain visible raw
 observations. The explorer cannot transmit or edit frames. See [Raw CAN Explorer](CAN_EXPLORER.md).
 
+Phase 7A diagnostics operate after DBC decoding and telemetry aggregation. Diagnostic rules never
+parse payloads or infer ECU ownership from arbitration IDs, and they do not change publication,
+transport, ordering, encoding, or DBC authority.
+
 Vehicle speed remains absent from DME. Phase 3A makes the simulated DSC its synthetic CAN publisher.
 The DSC derives four equal wheel speeds directly from vehicle speed because independent wheel physics
 does not exist yet; `VehicleState` is not expanded with redundant wheel fields.

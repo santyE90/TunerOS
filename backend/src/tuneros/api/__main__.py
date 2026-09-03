@@ -8,6 +8,7 @@ import uvicorn
 
 from tuneros.api import DEFAULT_API_HOST, DEFAULT_API_PORT, create_app
 from tuneros.can import DEFAULT_CAN_EXPLORER_CAPACITY, DEFAULT_GATEWAY_HOST, DEFAULT_GATEWAY_PORT
+from tuneros.diagnostics import DEFAULT_DIAGNOSTIC_EVENT_CAPACITY
 from tuneros.session import DEFAULT_SESSION_ROOT, SessionCatalog, SessionRecorder
 from tuneros.telemetry import (
     DEFAULT_CAN_REPLAY_SUBSCRIBER_QUEUE_CAPACITY,
@@ -48,6 +49,9 @@ def main() -> None:
         default=DEFAULT_CAN_REPLAY_SUBSCRIBER_QUEUE_CAPACITY,
     )
     parser.add_argument(
+        "--diagnostic-event-capacity", type=int, default=DEFAULT_DIAGNOSTIC_EVENT_CAPACITY
+    )
+    parser.add_argument(
         "--session-root",
         type=Path,
         default=Path(os.environ.get("TUNEROS_SESSION_ROOT", DEFAULT_SESSION_ROOT)),
@@ -67,6 +71,7 @@ def main() -> None:
         can_explorer_capacity=arguments.can_explorer_capacity,
         can_subscriber_queue_capacity=arguments.can_subscriber_queue_capacity,
         can_replay_subscriber_queue_capacity=arguments.can_replay_subscriber_queue_capacity,
+        diagnostic_event_capacity=arguments.diagnostic_event_capacity,
     )
     catalog = SessionCatalog(arguments.session_root)
     recorder = (
